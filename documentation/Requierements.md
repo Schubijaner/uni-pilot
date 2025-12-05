@@ -68,7 +68,7 @@ Diese dienen als Grundlage für das Datenmodell.
 
 ---
 
-### **4. Datenbank-Schema**
+s### **4. Datenbank-Schema**
 Die Datenbank soll folgende Entitäten abbilden:
 
 - Nutzerprofile  
@@ -76,19 +76,42 @@ Die Datenbank soll folgende Entitäten abbilden:
 - Karrierebaum (Themenfelder, Knoten, Beziehungen)  
 - Roadmaps  
 - Empfehlungen (Kurse, Bücher, Projekte, Skills)  
-- Fortschritt des/der Studierenden (z. B. erledigte Module, bearbeitete Roadmap-Einträge)  
+- Fortschritt des/der Studierenden (z. B. erledigte Module, bearbeitete Roadmap-Einträge)
 
 ---
 
-## **Deine Aufgabe**
-1. **Erstelle ausschließlich das Datenmodell** (keine Business-Logik).  
-2. Nutze **Python + FastAPI** als technische Grundlage.  
-3. Liefere ein vollständiges Datenmodell, z. B.:
-   - Pydantic-Models  
-   - SQLAlchemy-Models  
-4. Gib Empfehlungen:
-   - Wie sollte man das Projekt technisch am besten implementieren?  
-   - Gibt es passende oder integrierte Frameworks/Lösungen?  
-   - Sollte man statt FastAPI etwas Einfacheres verwenden, um schneller loszulegen?
+---
+### **5. AI-Features, die die App unterstützen muss**
+
+#### **1. LLM-gestützter Chat für jedes Themenfeld**
+Für jedes Themenfeld soll ein eigener Chatbot zur Verfügung stehen.  
+Der Chatbot nutzt eine LLM-Anbindung und kann:
+s
+- das jeweilige Themenfeld verständlich erklären  
+- einen ersten Überblick zu Inhalten, Skills und typischen Aufgaben geben  
+- Fragen der Studierenden präzise beantworten  
+
+Ziel: Studierende sollen schnell nachvollziehen können, ob ein Themenfeld zu ihren Interessen passt.
 
 ---
+
+#### **2. LLM-gestützte Generierung der Roadmap**
+Die Roadmap wird automatisch durch ein LLM erzeugt.  
+Der Prompt an das LLM umfasst Informationen wie:
+
+- Studiengang  
+- Skills  
+- aktuelles Semester  
+- mögliche Wahlpflichtfächer  
+- gewähltes Themenfeld  
+
+Auf dieser Basis soll das LLM eine Roadmap generieren, die sich am Datenschema orientiert und u. a. folgende Empfehlungen enthält:
+
+- welche Wahlpflichtmodule sinnvoll sind  
+- welche Bücher oder Ressourcen hilfreich sind  
+- relevante Bootcamps oder Online-Kurse  
+- Empfehlungen für Praktika oder Werkstudentenstellen  
+- Skills, die aufgebaut werden sollten  
+- Vorschläge für Projekte (Uni-, Privat- oder GitHub-Projekte)
+
+Ziel: Der/die Studierende soll eine strukturierte, praxisnahe und realistische Orientierung erhalten, um optimal für das gewählte Themenfeld ausgebildet zu werden.
