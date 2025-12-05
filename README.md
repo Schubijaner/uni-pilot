@@ -1,10 +1,8 @@
 # Uni Pilot
 
-> Eine kurze Beschreibung, was das Projekt macht (z. B.: Eine Webanwendung zur Verwaltung von XY, die ein performantes Python-Backend mit einer modernen React-Benutzeroberfläche verbindet).
+> Studienanfänger brauchen einen klaren Fahrplan vom aktuellen Stand bis zum Berufsziel.
 
 ## 📖 Über das Projekt
-
-Unser need: Studienanfänger brauchen einen klaren Fahrplan vom aktuellen Stand bis zum Berufsziel.
 
 ### Hauptfeatures
 * Persönliche Roadmap
@@ -50,3 +48,7 @@ Wir sind ein engagiertes Team aus Entwicklern und Managern, die dieses Projekt r
 ---
 
 ## 🚀 Erste Schritte (Getting Started)
+1. User Flows erstellen
+2. Endpoints definieren
+3. Screens designen
+4. Entwickeln
