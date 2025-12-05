@@ -1,0 +1,10 @@
+name: uni_pilot
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    - sqlalchemy>=2.0.0
+
