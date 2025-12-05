@@ -4,13 +4,13 @@
 
 ## 📖 Über das Projekt
 
-Dieses Projekt wurde entwickelt, um [Problem X zu lösen / Ziel Y zu erreichen]. Es nutzt eine **Microservice-Architektur**, wobei das Frontend und Backend getrennt voneinander entwickelt und deployt werden können.
+Unser need: Studienanfänger brauchen einen klaren Fahrplan vom aktuellen Stand bis zum Berufsziel.
 
 ### Hauptfeatures
-* 
-* 
-* 
-* 
+* Persönliche Roadmap
+* Darstellung der Möglichkeiten
+* Ist-Zustand vs. Soll-Zustand
+* (Social Features)
 
 ---
 
