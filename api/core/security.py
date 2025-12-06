@@ -18,12 +18,26 @@ settings = get_settings()
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt."""
-    return pwd_context.hash(password)
+    # Workaround for bcrypt initialization issue: use direct bcrypt library
+    import bcrypt
+    # Generate salt and hash
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against a hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    # Use direct bcrypt for compatibility with our hash_password implementation
+    import bcrypt
+    try:
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except Exception:
+        # Fallback to passlib if direct bcrypt fails (for old hashes)
+        try:
+            return pwd_context.verify(plain_password, hashed_password)
+        except Exception:
+            return False
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

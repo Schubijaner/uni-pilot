@@ -36,17 +36,28 @@ async def get_roadmap(
     Raises:
         HTTPException: If roadmap not found
     """
-    roadmap_response = RoadmapService.get_roadmap_with_tree(topic_field_id, db)
+    try:
+        roadmap_response = RoadmapService.get_roadmap_with_tree(topic_field_id, db)
 
-    if not roadmap_response:
+        if not roadmap_response:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Roadmap for topic field {topic_field_id} not found. Generate it first.",
+            )
+
+        # If format is 'flat', we still return the full response (items are flat, tree is optional)
+        # Frontend can choose which to use
+        return roadmap_response
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error getting roadmap for topic_field_id {topic_field_id}: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Roadmap for topic field {topic_field_id} not found. Generate it first.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}",
         )
-
-    # If format is 'flat', we still return the full response (items are flat, tree is optional)
-    # Frontend can choose which to use
-    return roadmap_response
 
 
 @router.post("/{topic_field_id}/roadmap/generate", response_model=RoadmapResponse, status_code=status.HTTP_201_CREATED)

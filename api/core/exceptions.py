@@ -1,5 +1,7 @@
 """Custom exceptions for Uni Pilot API."""
 
+from fastapi import HTTPException, status
+
 
 class UniPilotException(Exception):
     """Base exception for all Uni Pilot exceptions."""
@@ -44,8 +46,6 @@ class CredentialException(HTTPException):
     """Custom exception for authentication/authorization errors."""
 
     def __init__(self):
-        from fastapi import status
-
         super().__init__(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

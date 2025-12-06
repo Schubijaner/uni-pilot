@@ -123,7 +123,7 @@ async def get_career_tree(
     return tree
 
 
-@router.get("/topic-fields", response_model=List[TopicFieldBase])
+@router.get("/topic-fields", response_model=List[TopicFieldResponse])
 async def get_topic_fields(
     search: Optional[str] = Query(None, description="Search term"),
     limit: int = Query(100, ge=1, le=1000),
@@ -157,7 +157,7 @@ async def get_topic_fields(
     return [TopicFieldResponse.model_validate(tf) for tf in topic_fields]
 
 
-@router.get("/topic-fields/{topic_field_id}", response_model=TopicFieldBase)
+@router.get("/topic-fields/{topic_field_id}", response_model=TopicFieldResponse)
 async def get_topic_field(
     topic_field_id: int,
     db: Session = Depends(get_db),
@@ -213,7 +213,7 @@ async def select_topic_field(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
 
 
-@router.post("/users/me/questions")
+@router.post("/users/me/questions", status_code=status.HTTP_201_CREATED)
 async def create_user_question(
     request: UserQuestionCreate,
     current_user: User = Depends(get_current_user),

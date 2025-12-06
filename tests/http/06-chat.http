@@ -1,0 +1,84 @@
+### Uni Pilot API - Chat Tests
+### Run these after onboarding tests (requires valid token and topic field)
+
+@baseUrl = http://localhost:8000
+@apiVersion = v1
+
+### Use token from login (you'll need to copy it from 01-auth.http response)
+@token = YOUR_TOKEN_HERE
+
+### Replace {topic_field_id} with actual topic field ID from onboarding
+@topicFieldId = 1
+
+### 1. Create or Get Chat Session (requires authentication)
+# @name createSession
+POST {{baseUrl}}/api/{{apiVersion}}/topic-fields/{{topicFieldId}}/chat/sessions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### 2. Create Chat Session - Invalid Topic Field (should fail)
+POST {{baseUrl}}/api/{{apiVersion}}/topic-fields/9999/chat/sessions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### 3. Get Chat Messages for Session (replace {session_id} with actual session ID)
+GET {{baseUrl}}/api/{{apiVersion}}/chat/sessions/1/messages
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### 4. Get Chat Messages with Pagination
+GET {{baseUrl}}/api/{{apiVersion}}/chat/sessions/1/messages?limit=10&offset=0
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### 5. Send Chat Message (replace {session_id} with actual session ID)
+POST {{baseUrl}}/api/{{apiVersion}}/chat/sessions/1/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "content": "Welche Skills brauche ich für Full Stack Development?"
+}
+
+### 6. Send Another Chat Message
+POST {{baseUrl}}/api/{{apiVersion}}/chat/sessions/1/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "content": "Welche Tools empfehlst du für Backend-Entwicklung?"
+}
+
+### 7. Get Chat Messages (should now show conversation)
+GET {{baseUrl}}/api/{{apiVersion}}/chat/sessions/1/messages
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### 8. Send Message - Invalid Session (should fail)
+POST {{baseUrl}}/api/{{apiVersion}}/chat/sessions/9999/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "content": "This should fail"
+}
+
+### 9. Get All User Chat Sessions
+GET {{baseUrl}}/api/{{apiVersion}}/users/me/chat/sessions
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### 10. Get User Chat Sessions - Filtered by Topic Field
+GET {{baseUrl}}/api/{{apiVersion}}/users/me/chat/sessions?topic_field_id={{topicFieldId}}
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### 11. Get User Chat Sessions with Pagination
+GET {{baseUrl}}/api/{{apiVersion}}/users/me/chat/sessions?limit=10&offset=0
+Authorization: Bearer {{token}}
+Accept: application/json
+

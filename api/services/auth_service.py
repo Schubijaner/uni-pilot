@@ -103,7 +103,7 @@ class AuthService:
         Returns:
             JWT token string
         """
-        token_data = {"sub": user.id}  # 'sub' is standard JWT claim for subject (user ID)
+        token_data = {"sub": str(user.id)}  # 'sub' must be a string for jose library
         access_token = create_access_token(data=token_data)
         return access_token
 

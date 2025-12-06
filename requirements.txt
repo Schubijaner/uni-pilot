@@ -17,3 +17,9 @@ email-validator>=2.0.0
 
 # Pydantic Settings (for BaseSettings)
 pydantic-settings>=2.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx>=0.24.0
+pytest-cov>=4.1.0

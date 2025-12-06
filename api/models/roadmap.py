@@ -78,6 +78,7 @@ class RoadmapResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     items: Optional[List[RoadmapItemResponse]] = None
+    tree: Optional[RoadmapItemTreeResponse] = None  # Optional hierarchical tree structure
 
     class Config:
         from_attributes = True

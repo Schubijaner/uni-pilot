@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from api.core.exceptions import NotFoundError
 from api.dependencies import get_current_user, get_db
-from api.models.chat import ChatMessageCreateRequest, ChatMessageResponse, ChatMessageSendResponse, ChatSessionResponse
+from api.models.chat import ChatMessageCreate, ChatMessageResponse, ChatSendMessageResponse, ChatSessionResponse
 from api.services.chat_service import ChatService
 from database.models import TopicField, User
 
@@ -102,10 +102,10 @@ async def get_chat_messages(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
 
 
-@router.post("/chat/sessions/{session_id}/messages", response_model=ChatMessageSendResponse)
+@router.post("/chat/sessions/{session_id}/messages", response_model=ChatSendMessageResponse)
 async def send_chat_message(
     session_id: int,
-    request: ChatMessageCreateRequest,
+    request: ChatMessageCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -145,7 +145,7 @@ async def send_chat_message(
             db=db,
         )
 
-        return ChatMessageSendResponse(
+        return ChatSendMessageResponse(
             user_message=ChatMessageResponse.model_validate(user_message),
             assistant_message=ChatMessageResponse.model_validate(assistant_message),
         )

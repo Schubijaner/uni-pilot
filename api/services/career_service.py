@@ -145,10 +145,10 @@ class CareerService:
         # Get or create user profile
         profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
         if not profile:
-            raise NotFoundError(
-                f"User profile for user {user_id} not found. Complete onboarding first.",
-                "PROFILE_NOT_FOUND",
-            )
+            # Auto-create profile if it doesn't exist (for convenience during onboarding)
+            profile = UserProfile(user_id=user_id)
+            db.add(profile)
+            db.flush()
 
         # Update selected topic field
         profile.selected_topic_field_id = topic_field_id

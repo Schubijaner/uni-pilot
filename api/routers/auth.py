@@ -44,6 +44,18 @@ async def register_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=e.message,
         )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Log unexpected errors for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Unexpected error in register_user: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during registration",
+        )
 
 
 @router.post("/login", response_model=TokenResponse)

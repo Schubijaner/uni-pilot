@@ -143,6 +143,8 @@ class UserService:
                 grade=grade,
             )
             db.add(progress)
+            db.flush()  # Flush to get the ID
+            db.refresh(progress)  # Refresh to populate the ID
         else:
             progress.completed = completed
             if grade is not None:
@@ -154,7 +156,7 @@ class UserService:
             progress.completed_at = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
 
         db.commit()
-        db.refresh(progress)
+        db.refresh(progress)  # Final refresh after commit
         return progress
 
     @staticmethod
@@ -206,11 +208,12 @@ class UserService:
             .all()
         )
 
+        # Create progress map with UserRoadmapItem objects (not dicts)
         progress_map = {p.roadmap_item_id: p for p in user_progress}
 
         # Calculate progress
         total_items = len(roadmap_items)
-        completed_items = sum(1 for item_id in item_ids if progress_map.get(item_id, {}).completed)
+        completed_items = sum(1 for item_id in item_ids if progress_map.get(item_id) and progress_map.get(item_id).completed)
         progress_percentage = (completed_items / total_items * 100) if total_items > 0 else 0.0
 
         return {
@@ -271,6 +274,8 @@ class UserService:
                 completed=completed,
             )
             db.add(progress)
+            db.flush()  # Flush to get the ID
+            db.refresh(progress)  # Refresh to populate the ID
         else:
             progress.completed = completed
 
@@ -283,6 +288,6 @@ class UserService:
             progress.notes = notes
 
         db.commit()
-        db.refresh(progress)
+        db.refresh(progress)  # Final refresh after commit
         return progress
 

@@ -1,0 +1,62 @@
+### Uni Pilot API - Roadmaps Tests
+### Run these after onboarding and user profile tests (requires valid token and topic field)
+
+@baseUrl = http://localhost:8000
+@apiVersion = v1
+
+### Use token from login (you'll need to copy it from 01-auth.http response)
+@token = YOUR_TOKEN_HERE
+
+### Replace {topic_field_id} with actual topic field ID from onboarding
+@topicFieldId = 1
+
+### 1. Get Roadmap for Topic Field (should fail if roadmap doesn't exist yet)
+GET {{baseUrl}}/api/{{apiVersion}}/topic-fields/{{topicFieldId}}/roadmap
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### 2. Generate Roadmap (requires authentication and user profile)
+# @name generateRoadmap
+POST {{baseUrl}}/api/{{apiVersion}}/topic-fields/{{topicFieldId}}/roadmap/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### 3. Get Roadmap for Topic Field (should now return the generated roadmap)
+GET {{baseUrl}}/api/{{apiVersion}}/topic-fields/{{topicFieldId}}/roadmap
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### 4. Get Roadmap Progress (requires authentication and user profile with topic field)
+GET {{baseUrl}}/api/{{apiVersion}}/users/me/roadmap-progress
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### 5. Update Roadmap Item Progress (replace {roadmap_item_id} with actual roadmap item ID)
+PUT {{baseUrl}}/api/{{apiVersion}}/users/me/roadmap-items/1/progress
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "completed": true,
+  "completed_at": "2024-01-20T12:00:00Z",
+  "notes": "Completed the first milestone!"
+}
+
+### 6. Update Roadmap Item Progress - Incomplete
+PUT {{baseUrl}}/api/{{apiVersion}}/users/me/roadmap-items/2/progress
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "completed": false,
+  "completed_at": null,
+  "notes": "Still working on this"
+}
+
+### 7. Get Roadmap Progress (should show updated progress)
+GET {{baseUrl}}/api/{{apiVersion}}/users/me/roadmap-progress
+Authorization: Bearer {{token}}
+Accept: application/json
+

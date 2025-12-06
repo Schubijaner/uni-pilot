@@ -76,7 +76,7 @@ class RoadmapService:
                 id=item.id,
                 roadmap_id=item.roadmap_id,
                 parent_id=item.parent_id,
-                item_type=item.item_type,
+                item_type=item.item_type,  # Pydantic should handle enum conversion  # Convert enum to value
                 title=item.title,
                 description=item.description,
                 semester=item.semester,
@@ -124,7 +124,7 @@ class RoadmapService:
                 id=item.id,
                 roadmap_id=item.roadmap_id,
                 parent_id=item.parent_id,
-                item_type=item.item_type,
+                item_type=item.item_type,  # Pydantic should handle enum conversion
                 title=item.title,
                 description=item.description,
                 semester=item.semester,
@@ -147,8 +147,8 @@ class RoadmapService:
             description=roadmap.description,
             created_at=roadmap.created_at,
             updated_at=roadmap.updated_at,
-            items=items_response,
-            tree=tree_root,
+            items=items_response if items_response else [],  # Ensure list, not None
+            tree=tree_root,  # Add tree structure (can be None if no items)
         )
 
     def generate_roadmap(
