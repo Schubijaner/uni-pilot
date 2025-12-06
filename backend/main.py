@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 from api.core.config import get_settings
 from api.core.exceptions import AuthenticationError, LLMError, NotFoundError, UniPilotException, ValidationError
-from api.routers import auth, chat, example, health, modules, onboarding, roadmaps, users
+from api.routers import auth, chat, example, health, modules, onboarding, roadmaps, users, skills
 
 # Configure logging before creating the app
 settings = get_settings()
@@ -93,6 +93,7 @@ app.include_router(modules.router)
 app.include_router(roadmaps.router)
 app.include_router(chat.router)
 app.include_router(example.router)
+app.include_router(skills.router)
 
 if __name__ == "__main__":
     import uvicorn
