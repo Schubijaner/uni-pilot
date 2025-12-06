@@ -1,5 +1,7 @@
 """Authentication router."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -9,6 +11,7 @@ from api.models.auth import TokenResponse, UserLogin, UserRegister, UserResponse
 from api.services.auth_service import AuthService
 from database.models import User
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
@@ -49,8 +52,6 @@ async def register_user(
         raise
     except Exception as e:
         # Log unexpected errors for debugging
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Unexpected error in register_user: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

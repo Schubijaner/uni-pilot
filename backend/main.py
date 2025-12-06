@@ -1,5 +1,8 @@
 """FastAPI application for Uni Pilot."""
 
+import logging
+import sys
+
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +12,21 @@ from api.core.config import get_settings
 from api.core.exceptions import AuthenticationError, LLMError, NotFoundError, UniPilotException, ValidationError
 from api.routers import auth, chat, example, health, modules, onboarding, roadmaps, users
 
+# Configure logging before creating the app
 settings = get_settings()
+log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+
+logging.basicConfig(
+    level=log_level,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+    ],
+)
+
+logger = logging.getLogger(__name__)
+logger.info(f"Logging configured with level: {settings.LOG_LEVEL}")
 
 app = FastAPI(
     title="Uni Pilot API",

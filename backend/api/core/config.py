@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     CHAT_TEMPERATURE: float = 0.7
     ROADMAP_TEMPERATURE: float = 0.3  # Less creative for structured data
 
+    # Logging
+    LOG_LEVEL: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
