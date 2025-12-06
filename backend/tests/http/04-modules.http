@@ -1,0 +1,16 @@
+### Uni Pilot API - Modules Tests
+### Run these after onboarding tests (requires study program ID)
+
+@baseUrl = http://localhost:8000
+@apiVersion = v1
+
+### No authentication required for these endpoints
+
+### 1. Get Modules by Study Program ID (replace {id} with actual study program ID)
+GET {{baseUrl}}/api/{{apiVersion}}/study-programs/1/modules
+Accept: application/json
+
+### 2. Get Modules - This endpoint might not exist, testing for error handling
+GET {{baseUrl}}/api/{{apiVersion}}/modules
+Accept: application/json
+

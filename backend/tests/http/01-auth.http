@@ -1,0 +1,65 @@
+### Uni Pilot API - Authentication Tests
+### These tests should be run in order, as they build on each other
+
+@baseUrl = http://localhost:8000
+@apiVersion = v1
+
+### Variables for storing responses
+@token = {{login.response.body.$.access_token}}
+@userId = {{register.response.body.$.id}}
+
+### 1. Health Check
+GET {{baseUrl}}/health
+Accept: application/json
+
+### 2. API Info
+GET {{baseUrl}}/api/v1
+Accept: application/json
+
+### 3. User Registration
+# @name register
+POST {{baseUrl}}/api/{{apiVersion}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "testuser@example.com",
+  "password": "TestPassword123!",
+  "first_name": "Test",
+  "last_name": "User"
+}
+
+### 4. User Registration - Duplicate Email (should fail)
+POST {{baseUrl}}/api/{{apiVersion}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "testuser@example.com",
+  "password": "AnotherPassword123!",
+  "first_name": "Duplicate",
+  "last_name": "User"
+}
+
+### 5. User Login
+# @name login
+POST {{baseUrl}}/api/{{apiVersion}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@example.com",
+  "password": "TestPassword123!"
+}
+
+### 6. User Login - Wrong Password (should fail)
+POST {{baseUrl}}/api/{{apiVersion}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@example.com",
+  "password": "WrongPassword123!"
+}
+
+### 7. Get Current User (requires authentication)
+GET {{baseUrl}}/api/{{apiVersion}}/auth/me
+Authorization: Bearer {{token}}
+Accept: application/json
+
