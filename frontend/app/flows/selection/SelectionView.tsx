@@ -13,6 +13,7 @@ import CareerTree from '~/components/ui/Tree/Tree';
 import { getUserQuestions } from '~/api/getUserQuestions';
 import type { UserQuestion } from '~/types';
 import { getTree } from '~/api/getTree';
+import ChatContainer from '~/components/ui/ChatContainer';
 
 interface TreeNode {
   id: number;
@@ -21,16 +22,19 @@ interface TreeNode {
   is_leaf: boolean;
   level: number;
   children: TreeNode[];
-  topic_field?: {
-    id: number;
-    name: string;
-    description: string;
-  };
+  topic_field_id: number | null;
+  questions: string[] | null;
 }
 
 interface TreeData {
   study_program_id: number;
   nodes: TreeNode[]; // Nach Normalisierung durch getTree ist dies immer ein Array
+}
+
+interface QuestionNode {
+  question: string;
+  nodeId: number;
+  children: QuestionNode[];
 }
 
 function transformTreeToFlow(data: TreeData | null, onNodeClick: (node: TreeNode, event: React.MouseEvent) => void): { nodes: any[]; edges: any[] } {
@@ -133,18 +137,29 @@ function filterTreeByAnswers(
     return [];
   }
   
-  // For now, return all nodes since TreeNode doesn't have questions property
-  // TODO: Add questions to TreeNode interface or filter based on topic_field
-  return nodes.map((node) => {
-    // Recursively filter children - add safety check
-    const filteredChildren = filterTreeByAnswers(node.children, selectedOptions);
+  return nodes
+    .filter((node) => {
+      // Check if any of this node's questions were answered with "false"
+      if (node.questions && Array.isArray(node.questions)) {
+        for (const question of node.questions) {
+          // If this question was answered with false, filter out this node
+          if (selectedOptions[question] === false) {
+            return false;
+          }
+        }
+      }
+      return true;
+    })
+    .map((node) => {
+      // Recursively filter children
+      const filteredChildren = filterTreeByAnswers(node.children, selectedOptions);
 
-    // Return node with filtered children
-    return {
-      ...node,
-      children: filteredChildren,
-    };
-  });
+      // Return node with filtered children
+      return {
+        ...node,
+        children: filteredChildren,
+      };
+    });
 }
 
 // Helper function to collect all leaf nodes from the tree
@@ -165,69 +180,134 @@ function collectLeafNodes(nodes: TreeNode[]): TreeNode[] {
   return leaves;
 }
 
+// Build question tree from tree nodes - preserving hierarchy
+function buildQuestionTree(nodes: TreeNode[]): QuestionNode[] {
+  const questionNodes: QuestionNode[] = [];
+  
+  const processNode = (node: TreeNode): QuestionNode[] => {
+    const result: QuestionNode[] = [];
+    
+    // Process children first to get their question nodes
+    const childQuestionNodes: QuestionNode[] = [];
+    if (node.children && Array.isArray(node.children)) {
+      for (const child of node.children) {
+        childQuestionNodes.push(...processNode(child));
+      }
+    }
+    
+    // If this node has questions, create question nodes with children's questions as children
+    if (node.questions && Array.isArray(node.questions) && node.questions.length > 0) {
+      // For each question in this node, create a question node
+      // The last question gets the children
+      for (let i = 0; i < node.questions.length; i++) {
+        const isLastQuestion = i === node.questions.length - 1;
+        result.push({
+          question: node.questions[i],
+          nodeId: node.id,
+          children: isLastQuestion ? childQuestionNodes : [],
+        });
+      }
+    } else {
+      // No questions at this node, just pass through children's questions
+      result.push(...childQuestionNodes);
+    }
+    
+    return result;
+  };
+  
+  for (const node of nodes) {
+    questionNodes.push(...processNode(node));
+  }
+  
+  return questionNodes;
+}
+
+// Flatten visible questions based on selected answers
+function getVisibleQuestions(
+  questionTree: QuestionNode[],
+  selectedOptions: Record<string, boolean>
+): string[] {
+  const visibleQuestions: string[] = [];
+  
+  const traverse = (nodes: QuestionNode[]) => {
+    for (const node of nodes) {
+      visibleQuestions.push(node.question);
+      
+      // Only show children if this question was answered with "true"
+      if (selectedOptions[node.question] === true && node.children.length > 0) {
+        traverse(node.children);
+      }
+    }
+  };
+  
+  traverse(questionTree);
+  return visibleQuestions;
+}
+
 export const SelectionView: React.FC = () => {
   const navigate = useNavigate();
   const { state, toggleJob, generateRoadmap, token } = useApp();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, boolean>>({});
-  const [questions, setQuestions] = useState<UserQuestion[]>([]);
+  const [questionTree, setQuestionTree] = useState<QuestionNode[]>([]);
   const [isLoadingTree, setIsLoadingTree] = useState(true);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
   const [treeError, setTreeError] = useState<string | null>(null);
 
   const [treeData, setTreeData] = useState<TreeData | null>(null);
 
-  const [popupContent, setPopupContent] = useState<{ title: string; description: string } | null>(null);
+  const [popupContent, setPopupContent] = useState<{ 
+    title: string; 
+    description: string;
+    jobId?: number;
+  } | null>(null);
 
   const handleNodeClick = useCallback((node: TreeNode, event: React.MouseEvent) => {
     setPopupContent({
       title: node.name,
-      description: node.description
+      description: node.description,
+      jobId: node.id,
     });
   }, []);
 
   useEffect(() => {
-    const loadQuestions = async () => {
-      setIsLoadingQuestions(true);
-      if (token) {
-        try {
-          const fetchQuestions = await getUserQuestions(token);
-          setQuestions(fetchQuestions.items || []);
-        } catch (error) {
-          console.error('Failed to load user questions:', error);
-          setQuestions([]);
-        } finally {
-          setIsLoadingQuestions(false);
-        }
-      }
-    };
     const fetchTree = async () => {
       setIsLoadingTree(true);
+      setIsLoadingQuestions(true);
       setTreeError(null);
       try {
-        // TODO: Get study program ID from user profile or context
-        const studyProgramId = 1; // This should come from user profile
+        const studyProgramId = 1;
         const token = localStorage.getItem('auth_token') || undefined;
         const response = await getTree(studyProgramId, token);
-        // Validate response structure
-        if (response && response.nodes && Array.isArray(response.nodes)) {
+        if (response && response.nodes) {
           setTreeData(response);
+          
+          // Build question tree from tree nodes
+          const builtQuestionTree = buildQuestionTree(response.nodes);
+          setQuestionTree(builtQuestionTree);
         } else {
           console.error('Invalid tree data structure:', response);
           setTreeData(null);
           setTreeError('Ungültige Datenstruktur vom Server');
+          setQuestionTree([]);
         }
       } catch (error) {
         console.error('Failed to fetch tree:', error);
         setTreeData(null);
         setTreeError('Fehler beim Laden des Karrierebaums');
+        setQuestionTree([]);
       } finally {
         setIsLoadingTree(false);
+        setIsLoadingQuestions(false);
       }
     };
     fetchTree();
-    loadQuestions();
   }, [token]);
+
+  // Get visible questions based on answers
+  const visibleQuestions = useMemo(() => {
+    return getVisibleQuestions(questionTree, selectedOptions);
+  }, [questionTree, selectedOptions]);
 
   // Filter the tree based on user's answers
   const filteredTreeData = useMemo(() => {
@@ -281,7 +361,13 @@ export const SelectionView: React.FC = () => {
 
   // Handlers
   const handleOptionSelect = useCallback((questionId: string, optionId: "true" | "false") => {
-    setSelectedOptions((prev) => ({ ...prev, [questionId]: optionId === "true" ? true : false }));
+    setSelectedOptions((prev) => {
+      const newOptions = { ...prev, [questionId]: optionId === "true" };
+      
+      // If answering "false", we don't need to clear children since they won't be visible
+      // If answering "true", children will become visible
+      return newOptions;
+    });
   }, []);
 
   const handlePrevQuestion = useCallback(() => {
@@ -291,23 +377,34 @@ export const SelectionView: React.FC = () => {
   }, [currentQuestionIndex]);
 
   const handleNextQuestion = useCallback(() => {
-    if (currentQuestionIndex < questions.length - 1) {
+    if (currentQuestionIndex < visibleQuestions.length - 1) {
       setCurrentQuestionIndex((prev) => prev + 1);
     }
-  }, [currentQuestionIndex, questions.length]);
+  }, [currentQuestionIndex, visibleQuestions.length]);
+
+  // Reset question index if it's out of bounds
+  useEffect(() => {
+    if (currentQuestionIndex >= visibleQuestions.length && visibleQuestions.length > 0) {
+      setCurrentQuestionIndex(visibleQuestions.length - 1);
+    }
+  }, [visibleQuestions.length, currentQuestionIndex]);
 
   const handleCreateRoadmap = useCallback(async () => {
     if (!filteredTreeData || !canCreateRoadmap) {
       return;
     }
+
+    /*
     
     // Collect all leaf nodes from the filtered tree
     const targetJobs = collectLeafNodes(filteredTreeData.nodes);
+    
     
     // Get topic_field IDs from leaf nodes
     const topicFieldIds = targetJobs
       .filter(job => job.topic_field)
       .map(job => job.topic_field!.id);
+      
     
     if (topicFieldIds.length > 0) {
       // TODO: Get token from auth context or localStorage
@@ -326,6 +423,7 @@ export const SelectionView: React.FC = () => {
         // Show error to user
       }
     }
+      */
   }, [filteredTreeData, canCreateRoadmap, generateRoadmap, navigate]);
 
   return (
@@ -356,14 +454,14 @@ export const SelectionView: React.FC = () => {
         <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
           <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700">
             <FilterQuestions
-              questions={questions}
+              questions={visibleQuestions}
               currentQuestionIndex={currentQuestionIndex}
               selectedOptions={selectedOptions}
               onOptionSelect={handleOptionSelect}
               onPrev={handlePrevQuestion}
               onNext={handleNextQuestion}
               canGoPrev={currentQuestionIndex > 0}
-              canGoNext={currentQuestionIndex < questions.length - 1}
+              canGoNext={currentQuestionIndex < visibleQuestions.length - 1}
             />
           </div>
         </div>
@@ -398,35 +496,74 @@ export const SelectionView: React.FC = () => {
               <div className="pointer-events-auto max-w-sm flex flex-col">
                 <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex-1 flex flex-col overflow-hidden">
                   <FilterQuestions
-                    questions={questions}
+                    questions={visibleQuestions}
                     currentQuestionIndex={currentQuestionIndex}
                     selectedOptions={selectedOptions}
                     onOptionSelect={handleOptionSelect}
                     onPrev={handlePrevQuestion}
                     onNext={handleNextQuestion}
                     canGoPrev={currentQuestionIndex > 0}
-                    canGoNext={currentQuestionIndex < questions.length - 1}
+                    canGoNext={currentQuestionIndex < visibleQuestions.length - 1}
                   />
                 </div>
               </div>
               
-              {/* Indigo div - Stretches to the right */}
-              {popupContent && <div className="pointer-events-auto flex-1">
-                <Card variant="glass" className="h-full flex flex-col p-6">
-                  <div className="flex justify-between items-start gap-4 mb-4">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">{popupContent.title}</h2>
-                    <button 
-                      onClick={setPopupContent.bind(null, null)} 
-                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 flex-shrink-0"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <p className="text-gray-600 dark:text-gray-300">{popupContent.description}</p>
-                </Card>
-              </div>}
+              {/* Chat Card */}
+              {popupContent && (
+                <div className="pointer-events-auto flex-1">
+                  <Card variant="glass" className="h-full flex flex-col p-6">
+                    {popupContent.jobId && token ? (
+                      <ChatContainer
+                        jobId={popupContent.jobId}
+                        topicFieldName={popupContent.title}
+                        topicFieldDescription={popupContent.description}
+                        token={token}
+                        onClose={() => setPopupContent(null)}
+                      />
+                    ) : (
+                      <>
+                        <div className="flex justify-between items-start gap-4 mb-4">
+                          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                            {popupContent.title}
+                          </h2>
+                          <button
+                            onClick={() => setPopupContent(null)}
+                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 flex-shrink-0"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-6 w-6"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                        <p className="text-gray-600 dark:text-gray-300">
+                          {popupContent.description}
+                        </p>
+                        {!popupContent.topicFieldId && (
+                          <p className="mt-4 text-sm text-amber-600 dark:text-amber-400">
+                            Chat ist nur für Leaf-Nodes mit Topic Fields verfügbar.
+                          </p>
+                        )}
+                        {!token && (
+                          <p className="mt-4 text-sm text-amber-600 dark:text-amber-400">
+                            Bitte melde dich an, um den Chat zu nutzen.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </Card>
+                </div>
+              )}
             </div>
           </div>
         </div>

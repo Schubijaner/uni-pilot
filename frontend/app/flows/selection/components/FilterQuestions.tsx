@@ -8,7 +8,7 @@ import type { FilterQuestion, FilterOption, UserQuestion } from '~/types';
 import { Button, Card } from '~/components/ui';
 
 interface FilterQuestionsProps {
-  questions: (FilterQuestion | UserQuestion)[];
+  questions: string[];
   currentQuestionIndex: number;
   selectedOptions: Record<string, boolean>;
   onOptionSelect: (questionId: string, optionId: "true" | "false") => void;
@@ -63,7 +63,7 @@ export const FilterQuestions: React.FC<FilterQuestionsProps> = ({
     return null;
   }
 
-  const questionId = typeof currentQuestion.id === 'number' ? currentQuestion.id.toString() : currentQuestion.id;
+  const questionId = currentQuestion;
   const selectedOptionId = selectedOptions[questionId];
 
   return (
@@ -90,7 +90,7 @@ export const FilterQuestions: React.FC<FilterQuestionsProps> = ({
 
       {/* Question */}
       <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 lg:mb-6">
-        {'question_text' in currentQuestion ? currentQuestion.question_text : currentQuestion.question}
+        {currentQuestion}
       </h3>
 
       {/* Options */}
