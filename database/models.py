@@ -34,6 +34,7 @@ class RoadmapItemType(PyEnum):
     CERTIFICATE = "CERTIFICATE"
     INTERNSHIP = "INTERNSHIP"
     BOOTCAMP = "BOOTCAMP"
+    CAREER = "CAREER"  # Beruf (für Leaf Nodes mit is_career_goal = True)
 
 
 # Models
@@ -229,24 +230,29 @@ class Roadmap(Base):
 
 
 class RoadmapItem(Base):
-    """RoadmapItem model - Einzelner Eintrag in einer Roadmap."""
+    """RoadmapItem model - Einzelner Eintrag in einer Roadmap (hierarchisch strukturiert)."""
 
     __tablename__ = "roadmap_items"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     roadmap_id = Column(Integer, ForeignKey("roadmaps.id", ondelete="CASCADE"), nullable=False)
+    parent_id = Column(Integer, ForeignKey("roadmap_items.id", ondelete="CASCADE"), nullable=True)
     item_type = Column(Enum(RoadmapItemType), nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     semester = Column(Integer, nullable=True)
     is_semester_break = Column(Boolean, default=False, nullable=False)
     order = Column(Integer, default=0, nullable=False)
+    level = Column(Integer, default=0, nullable=False)  # Tiefe im Tree (0 = Root)
+    is_leaf = Column(Boolean, default=False, nullable=False)  # Ist Endknoten (Beruf)?
+    is_career_goal = Column(Boolean, default=False, nullable=False)  # Ist dieser Item ein Beruf (Ziel)?
     module_id = Column(Integer, ForeignKey("modules.id", ondelete="SET NULL"), nullable=True)
     is_important = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
     roadmap = relationship("Roadmap", back_populates="items")
+    parent = relationship("RoadmapItem", remote_side=[id], backref="children")  # Self-referencing für Tree-Struktur
     module = relationship("Module", back_populates="roadmap_items")
     roadmap_progress = relationship("UserRoadmapItem", back_populates="roadmap_item", cascade="all, delete-orphan")
     recommendations = relationship("Recommendation", back_populates="roadmap_item")

@@ -332,96 +332,173 @@ def seed_database(db: Session):
     db.add_all([roadmap_fullstack, roadmap_backend, roadmap_frontend])
     db.flush()
 
-    # 7. Roadmap Items for Full Stack Development
+    # 7. Roadmap Items for Full Stack Development (hierarchische Struktur)
     web_module = next(m for m in modules if m.name == "Web Development")
     db_module = next(m for m in modules if m.name == "Datenbanken")
 
-    roadmap_items_fullstack = [
-        # Semester 3
-        RoadmapItem(
-            roadmap_id=roadmap_fullstack.id,
-            item_type=RoadmapItemType.MODULE,
-            title="Web Development Grundlagen",
-            description="Lerne HTML, CSS und JavaScript",
-            semester=3,
-            is_semester_break=False,
-            order=1,
-            module_id=web_module.id,
-            is_important=True,
-        ),
-        RoadmapItem(
-            roadmap_id=roadmap_fullstack.id,
-            item_type=RoadmapItemType.MODULE,
-            title="Datenbanken",
-            description="SQL und Datenbankdesign",
-            semester=3,
-            is_semester_break=False,
-            order=2,
-            module_id=db_module.id,
-            is_important=True,
-        ),
-        # Semester 4
-        RoadmapItem(
-            roadmap_id=roadmap_fullstack.id,
-            item_type=RoadmapItemType.COURSE,
-            title="React Fundamentals",
-            description="Lerne React für moderne Frontend-Entwicklung",
-            semester=4,
-            is_semester_break=False,
-            order=3,
-            is_important=True,
-        ),
-        RoadmapItem(
-            roadmap_id=roadmap_fullstack.id,
-            item_type=RoadmapItemType.COURSE,
-            title="Node.js & Express",
-            description="Backend-Entwicklung mit Node.js",
-            semester=4,
-            is_semester_break=False,
-            order=4,
-            is_important=True,
-        ),
-        # Semesterferien zwischen 4 und 5
-        RoadmapItem(
-            roadmap_id=roadmap_fullstack.id,
-            item_type=RoadmapItemType.PROJECT,
-            title="Eigene Full Stack Web-App",
-            description="Baue eine vollständige Web-Anwendung (Frontend + Backend + DB)",
-            semester=None,
-            is_semester_break=True,
-            order=5,
-            is_important=True,
-        ),
-        # Semester 5
-        RoadmapItem(
-            roadmap_id=roadmap_fullstack.id,
-            item_type=RoadmapItemType.SKILL,
-            title="API Design",
-            description="RESTful APIs designen und implementieren",
-            semester=5,
-            is_semester_break=False,
-            order=6,
-            is_important=False,
-        ),
-        RoadmapItem(
-            roadmap_id=roadmap_fullstack.id,
-            item_type=RoadmapItemType.CERTIFICATE,
-            title="AWS Cloud Practitioner",
-            description="Cloud-Grundlagen für Full Stack Developer",
-            semester=None,
-            is_semester_break=True,
-            order=7,
-            is_important=False,
-        ),
-    ]
+    # Hierarchische Struktur: Semester 3 (Parent) -> Module (Children) -> Beruf (Leaf)
+    # Level 0: Semester 3
+    semester_3_item = RoadmapItem(
+        roadmap_id=roadmap_fullstack.id,
+        parent_id=None,
+        item_type=RoadmapItemType.MODULE,
+        title="Semester 3",
+        description="Grundlagen-Semester für Full Stack Development",
+        semester=3,
+        is_semester_break=False,
+        order=1,
+        level=0,
+        is_leaf=False,
+        is_career_goal=False,
+        module_id=None,
+        is_important=False,
+    )
+    db.add(semester_3_item)
+    db.flush()
 
-    db.add_all(roadmap_items_fullstack)
+    # Level 1: Module unter Semester 3
+    web_dev_item = RoadmapItem(
+        roadmap_id=roadmap_fullstack.id,
+        parent_id=semester_3_item.id,
+        item_type=RoadmapItemType.MODULE,
+        title="Web Development Grundlagen",
+        description="Lerne HTML, CSS und JavaScript",
+        semester=3,
+        is_semester_break=False,
+        order=1,
+        level=1,
+        is_leaf=False,
+        is_career_goal=False,
+        module_id=web_module.id,
+        is_important=True,
+    )
+    db_module_item = RoadmapItem(
+        roadmap_id=roadmap_fullstack.id,
+        parent_id=semester_3_item.id,
+        item_type=RoadmapItemType.MODULE,
+        title="Datenbanken",
+        description="SQL und Datenbankdesign",
+        semester=3,
+        is_semester_break=False,
+        order=2,
+        level=1,
+        is_leaf=False,
+        is_career_goal=False,
+        module_id=db_module.id,
+        is_important=True,
+    )
+    db.add_all([web_dev_item, db_module_item])
+    db.flush()
+
+    # Level 2: Beruf als Leaf Node unter Web Development Modul
+    career_goal_fullstack = RoadmapItem(
+        roadmap_id=roadmap_fullstack.id,
+        parent_id=web_dev_item.id,
+        item_type=RoadmapItemType.CAREER,
+        title="Full Stack Developer",
+        description="Karriereziel erreicht: Vollständige Web-Entwicklung beherrschen",
+        semester=None,
+        is_semester_break=False,
+        order=1,
+        level=2,
+        is_leaf=True,
+        is_career_goal=True,
+        module_id=None,
+        is_important=True,
+    )
+    db.add(career_goal_fullstack)
+    db.flush()
+
+    # Semester 4 (separate hierarchische Struktur)
+    semester_4_item = RoadmapItem(
+        roadmap_id=roadmap_fullstack.id,
+        parent_id=None,
+        item_type=RoadmapItemType.COURSE,
+        title="Semester 4",
+        description="Vertiefung Frontend & Backend",
+        semester=4,
+        is_semester_break=False,
+        order=2,
+        level=0,
+        is_leaf=False,
+        is_career_goal=False,
+        module_id=None,
+        is_important=False,
+    )
+    db.add(semester_4_item)
+    db.flush()
+
+    react_item = RoadmapItem(
+        roadmap_id=roadmap_fullstack.id,
+        parent_id=semester_4_item.id,
+        item_type=RoadmapItemType.COURSE,
+        title="React Fundamentals",
+        description="Lerne React für moderne Frontend-Entwicklung",
+        semester=4,
+        is_semester_break=False,
+        order=1,
+        level=1,
+        is_leaf=False,
+        is_career_goal=False,
+        module_id=None,
+        is_important=True,
+    )
+    nodejs_item = RoadmapItem(
+        roadmap_id=roadmap_fullstack.id,
+        parent_id=semester_4_item.id,
+        item_type=RoadmapItemType.COURSE,
+        title="Node.js & Express",
+        description="Backend-Entwicklung mit Node.js",
+        semester=4,
+        is_semester_break=False,
+        order=2,
+        level=1,
+        is_leaf=False,
+        is_career_goal=False,
+        module_id=None,
+        is_important=True,
+    )
+    db.add_all([react_item, nodejs_item])
+    db.flush()
+
+    # Semesterferien: Projekt
+    break_item = RoadmapItem(
+        roadmap_id=roadmap_fullstack.id,
+        parent_id=None,
+        item_type=RoadmapItemType.PROJECT,
+        title="Semesterferien - Full Stack Projekt",
+        description="Praktische Anwendung",
+        semester=None,
+        is_semester_break=True,
+        order=3,
+        level=0,
+        is_leaf=False,
+        is_career_goal=False,
+        module_id=None,
+        is_important=True,
+    )
+    project_item = RoadmapItem(
+        roadmap_id=roadmap_fullstack.id,
+        parent_id=break_item.id,
+        item_type=RoadmapItemType.PROJECT,
+        title="Eigene Full Stack Web-App",
+        description="Baue eine vollständige Web-Anwendung (Frontend + Backend + DB)",
+        semester=None,
+        is_semester_break=True,
+        order=1,
+        level=1,
+        is_leaf=False,
+        is_career_goal=False,
+        module_id=None,
+        is_important=True,
+    )
+    db.add_all([break_item, project_item])
     db.flush()
 
     # 8. Recommendations
     recommendations = [
         Recommendation(
-            roadmap_item_id=roadmap_items_fullstack[2].id,  # React Fundamentals
+            roadmap_item_id=react_item.id,  # React Fundamentals
             topic_field_id=None,
             title="MDN Web Docs - React",
             description="Umfassende React-Dokumentation",
@@ -437,7 +514,7 @@ def seed_database(db: Session):
             url="https://eloquentjavascript.net",
         ),
         Recommendation(
-            roadmap_item_id=roadmap_items_fullstack[4].id,  # Full Stack Project
+            roadmap_item_id=project_item.id,  # Full Stack Project
             topic_field_id=None,
             title="The Odin Project",
             description="Vollständiger Full Stack Development Kurs",
@@ -562,21 +639,21 @@ def seed_database(db: Session):
     roadmap_progress = [
         UserRoadmapItem(
             user_id=user_main.id,
-            roadmap_item_id=roadmap_items_fullstack[0].id,  # Web Development Grundlagen
+            roadmap_item_id=web_dev_item.id,  # Web Development Grundlagen
             completed=True,
             completed_at=datetime.utcnow() - timedelta(days=30),
             notes="Sehr hilfreich für das Verständnis von Web-Entwicklung",
         ),
         UserRoadmapItem(
             user_id=user_main.id,
-            roadmap_item_id=roadmap_items_fullstack[1].id,  # Datenbanken
+            roadmap_item_id=db_module_item.id,  # Datenbanken
             completed=True,
             completed_at=datetime.utcnow() - timedelta(days=20),
             notes=None,
         ),
         UserRoadmapItem(
             user_id=user_main.id,
-            roadmap_item_id=roadmap_items_fullstack[2].id,  # React Fundamentals
+            roadmap_item_id=react_item.id,  # React Fundamentals
             completed=False,
             completed_at=None,
             notes="In Bearbeitung",
