@@ -1,7 +1,7 @@
 """User and profile-related Pydantic schemas."""
 
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -123,4 +123,52 @@ class RoadmapProgressUpdate(BaseModel):
                 "notes": "Sehr hilfreich für das Verständnis",
             }
         }
+
+
+class PaginatedUniversitiesResponse(BaseModel):
+    """Paginated universities response."""
+
+    items: List[UniversityResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class PaginatedStudyProgramsResponse(BaseModel):
+    """Paginated study programs response."""
+
+    items: List[StudyProgramResponse]
+    total: int
+
+
+class PaginatedModulesResponse(BaseModel):
+    """Paginated modules response."""
+
+    items: List[ModuleResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class UserQuestionResponse(BaseModel):
+    """User question response model."""
+
+    id: int
+    user_id: int
+    question_text: str
+    answer: bool
+    career_tree_node_id: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PaginatedUserQuestionsResponse(BaseModel):
+    """Paginated user questions response."""
+
+    items: List[UserQuestionResponse]
+    total: int
+    limit: int
+    offset: int
 

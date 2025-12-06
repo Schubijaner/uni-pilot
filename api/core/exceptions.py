@@ -39,3 +39,16 @@ class LLMError(UniPilotException):
 
     pass
 
+
+class CredentialException(HTTPException):
+    """Custom exception for authentication/authorization errors."""
+
+    def __init__(self):
+        from fastapi import status
+
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+

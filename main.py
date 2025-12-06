@@ -1,9 +1,15 @@
 """FastAPI application for Uni Pilot."""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from api.routers import health, example
+from api.core.config import get_settings
+from api.core.exceptions import AuthenticationError, LLMError, NotFoundError, UniPilotException, ValidationError
+from api.routers import auth, chat, health, modules, onboarding, roadmaps, users
+
+settings = get_settings()
 
 app = FastAPI(
     title="Uni Pilot API",
@@ -13,7 +19,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,8 +37,44 @@ async def root():
     }
 
 
+# Error handlers
+@app.exception_handler(UniPilotException)
+async def unipilot_exception_handler(request: Request, exc: UniPilotException):
+    """Handle custom UniPilot exceptions."""
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    if isinstance(exc, NotFoundError):
+        status_code = status.HTTP_404_NOT_FOUND
+    elif isinstance(exc, ValidationError):
+        status_code = status.HTTP_400_BAD_REQUEST
+    elif isinstance(exc, AuthenticationError):
+        status_code = status.HTTP_401_UNAUTHORIZED
+    elif isinstance(exc, LLMError):
+        status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": exc.message, "error_code": exc.error_code},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle Pydantic validation errors."""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors(), "error_code": "VALIDATION_ERROR"},
+    )
+
+
 # Include API routers
 app.include_router(health.router, tags=["health"])
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(onboarding.router)
+app.include_router(modules.router)
+app.include_router(roadmaps.router)
+app.include_router(chat.router)
 app.include_router(example.router)
 
 if __name__ == "__main__":
