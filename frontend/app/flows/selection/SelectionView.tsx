@@ -259,14 +259,14 @@ export const SelectionView: React.FC = () => {
   const [popupContent, setPopupContent] = useState<{ 
     title: string; 
     description: string;
-    jobId?: number;
+    topicFieldId?: number;
   } | null>(null);
 
   const handleNodeClick = useCallback((node: TreeNode, event: React.MouseEvent) => {
     setPopupContent({
       title: node.name,
       description: node.description,
-      jobId: node.id,
+      topicFieldId: node.topic_field_id ? node.topic_field_id : undefined,
     });
   }, []);
 
@@ -512,9 +512,9 @@ export const SelectionView: React.FC = () => {
               {popupContent && (
                 <div className="pointer-events-auto flex-1">
                   <Card variant="glass" className="h-full flex flex-col p-6">
-                    {popupContent.jobId && token ? (
+                    {popupContent.topicFieldId && token ? (
                       <ChatContainer
-                        jobId={popupContent.jobId}
+                        topicFieldId={popupContent.topicFieldId}
                         topicFieldName={popupContent.title}
                         topicFieldDescription={popupContent.description}
                         token={token}

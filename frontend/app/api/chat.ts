@@ -55,6 +55,7 @@ export async function createOrGetJobChatSession(
   jobId: number,
   token: string
 ): Promise<ChatSession> {
+    console.log("createOrGetJobChatSession called with jobId:", jobId);
   const response = await fetch(
     `${baseUrl}/api/v1/jobs/${jobId}/chat/sessions`,
     {

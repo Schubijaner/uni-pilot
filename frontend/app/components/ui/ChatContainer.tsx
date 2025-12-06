@@ -14,7 +14,7 @@ import {
 } from '~/api/chat';
 
 interface ChatContainerProps {
-  jobId: number;
+  topicFieldId: number;
   topicFieldName: string;
   topicFieldDescription: string;
   token: string;
@@ -22,7 +22,7 @@ interface ChatContainerProps {
 }
 
 export const ChatContainer: React.FC<ChatContainerProps> = ({
-  jobId,
+  topicFieldId,
   topicFieldName,
   topicFieldDescription,
   token,
@@ -50,7 +50,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       setIsLoading(true);
       setError(null);
       try {
-        const chatSession = await createOrGetJobChatSession(jobId, token);
+        const chatSession = await createOrGetJobChatSession(topicFieldId, token);
         setSession(chatSession);
 
         // Load existing messages
@@ -65,7 +65,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     };
 
     initSession();
-  }, [jobId, token]);
+  }, [topicFieldId, token]);
 
   // Handle sending message
   const handleSendMessage = useCallback(
