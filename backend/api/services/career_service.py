@@ -75,6 +75,18 @@ class CareerService:
             # Sort children by level and name
             children_sorted = sorted(children, key=lambda n: (n.level, n.name))
 
+            # Parse questions from JSON field (stored as Text in SQLite)
+            questions = None
+            if node.questions is not None:
+                import json
+                if isinstance(node.questions, list):
+                    questions = node.questions
+                elif isinstance(node.questions, str):
+                    try:
+                        questions = json.loads(node.questions)
+                    except (json.JSONDecodeError, TypeError):
+                        questions = None
+
             return CareerTreeNodeResponse(
                 id=node.id,
                 name=node.name,
@@ -92,6 +104,7 @@ class CareerService:
                     if node.topic_field
                     else None
                 ),
+                questions=questions,
                 children=[build_tree(child) for child in children_sorted],
             )
 
@@ -190,4 +203,65 @@ class CareerService:
         db.commit()
         db.refresh(user_question)
         return user_question
+
+    @staticmethod
+    def get_job(job_id: int, db: Session) -> CareerTreeNode:
+        """
+        Get job (career tree node with is_leaf=True) by ID.
+
+        Args:
+            job_id: Career tree node ID (must be a leaf node)
+            db: Database session
+
+        Returns:
+            CareerTreeNode object
+
+        Raises:
+            NotFoundError: If job not found or not a leaf node
+        """
+        job = db.query(CareerTreeNode).filter(CareerTreeNode.id == job_id).first()
+        if not job:
+            raise NotFoundError(
+                f"Career tree node with id {job_id} not found",
+                "JOB_NOT_FOUND",
+            )
+        if not job.is_leaf:
+            raise NotFoundError(
+                f"Career tree node with id {job_id} is not a leaf node (job)",
+                "NOT_A_JOB",
+            )
+        return job
+
+    @staticmethod
+    def select_job(user_id: int, job_id: int, db: Session) -> UserProfile:
+        """
+        Select job for user (updates user profile).
+
+        Args:
+            user_id: User ID
+            job_id: Career tree node ID (must be a leaf node)
+            db: Database session
+
+        Returns:
+            Updated UserProfile object
+
+        Raises:
+            NotFoundError: If job not found or not a leaf node, or user profile not found
+        """
+        # Verify job exists and is a leaf node
+        job = CareerService.get_job(job_id, db)
+
+        # Get or create user profile
+        profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+        if not profile:
+            # Auto-create profile if it doesn't exist
+            profile = UserProfile(user_id=user_id)
+            db.add(profile)
+            db.flush()
+
+        # Update selected job
+        profile.selected_job_id = job_id
+        db.commit()
+        db.refresh(profile)
+        return profile
 

@@ -1,18 +1,21 @@
 """Onboarding router (universities, study programs, career tree, topic fields)."""
 
+import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from api.core.exceptions import NotFoundError
+from api.core.exceptions import LLMError, NotFoundError
 from api.dependencies import get_current_user, get_db
-from api.models.career import CareerTreeResponse, TopicFieldResponse, TopicFieldSelectRequest, UserQuestionCreate
+from api.models.career import CareerTreeResponse, JobSelectRequest, TopicFieldResponse, TopicFieldSelectRequest, UserQuestionCreate
 from api.models.user import PaginatedStudyProgramsResponse, PaginatedUniversitiesResponse, StudyProgramResponse, UniversityResponse, UserProfileResponse
 from api.services.career_service import CareerService
+from api.services.roadmap_service import RoadmapService
 from api.services.user_service import UserService
 from database.models import StudyProgram, University, User
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["onboarding"])
 
 
@@ -208,6 +211,57 @@ async def select_topic_field(
             topic_field_id=request.topic_field_id,
             db=db,
         )
+        return UserProfileResponse.model_validate(profile)
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
+
+
+@router.put("/users/me/profile/job", response_model=UserProfileResponse)
+async def select_job(
+    request: JobSelectRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Select job for current user (after career tree navigation).
+    Automatically generates a roadmap for the selected job.
+
+    Args:
+        request: Job selection request
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Updated user profile
+
+    Raises:
+        HTTPException: If job not found, not a leaf node, or roadmap generation fails
+    """
+    try:
+        # Select job
+        profile = CareerService.select_job(
+            user_id=current_user.id,
+            job_id=request.job_id,
+            db=db,
+        )
+
+        # Automatically generate roadmap for the selected job
+        if profile.study_program_id:
+            try:
+                job = CareerService.get_job(request.job_id, db)
+                study_program = db.query(StudyProgram).filter(StudyProgram.id == profile.study_program_id).first()
+                if study_program:
+                    roadmap_service = RoadmapService()
+                    roadmap_service.generate_roadmap_for_job(
+                        user_profile=profile,
+                        job=job,
+                        study_program=study_program,
+                        db=db,
+                    )
+            except (LLMError, NotFoundError) as e:
+                # Log error but don't fail the job selection
+                logger.warning(f"Failed to auto-generate roadmap for job {request.job_id}: {e}")
+
         return UserProfileResponse.model_validate(profile)
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)

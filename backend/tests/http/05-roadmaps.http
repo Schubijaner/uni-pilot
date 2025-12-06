@@ -18,7 +18,7 @@ Content-Type: application/json
 @token = {{login.response.body.$.access_token}}
 
 ### Replace {topic_field_id} with actual topic field ID from onboarding
-@topicFieldId = 4
+@topicFieldId = 5
 
 ### 1. Get Roadmap for Topic Field (should fail if roadmap doesn't exist yet)
 GET {{baseUrl}}/api/{{apiVersion}}/topic-fields/{{topicFieldId}}/roadmap

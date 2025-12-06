@@ -127,6 +127,7 @@ class UserProfile(Base):
     current_semester = Column(Integer, nullable=True)
     skills = Column(Text, nullable=True)
     selected_topic_field_id = Column(Integer, ForeignKey("topic_fields.id", ondelete="SET NULL"), nullable=True)
+    selected_job_id = Column(Integer, ForeignKey("career_tree_nodes.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime(timezone=True),
@@ -140,6 +141,7 @@ class UserProfile(Base):
     university = relationship("University", back_populates="user_profiles")
     study_program = relationship("StudyProgram", back_populates="user_profiles")
     selected_topic_field = relationship("TopicField")
+    selected_job = relationship("CareerTreeNode", foreign_keys=[selected_job_id])
 
 
 class Module(Base):
@@ -174,6 +176,7 @@ class CareerTreeNode(Base):
     topic_field_id = Column(Integer, ForeignKey("topic_fields.id", ondelete="SET NULL"), nullable=True)
     is_leaf = Column(Boolean, default=False, nullable=False)
     level = Column(Integer, default=0, nullable=False)
+    questions = Column(Text, nullable=True)  # JSON-String: Liste von Fragen, eine pro Kindknoten
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
@@ -278,13 +281,14 @@ class Recommendation(Base):
 
 
 class ChatSession(Base):
-    """ChatSession model - Chat-Session für ein spezifisches Themenfeld."""
+    """ChatSession model - Chat-Session für ein spezifisches Themenfeld oder Job."""
 
     __tablename__ = "chat_sessions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    topic_field_id = Column(Integer, ForeignKey("topic_fields.id", ondelete="CASCADE"), nullable=False)
+    topic_field_id = Column(Integer, ForeignKey("topic_fields.id", ondelete="CASCADE"), nullable=True)
+    career_tree_node_id = Column(Integer, ForeignKey("career_tree_nodes.id", ondelete="CASCADE"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime(timezone=True),
@@ -296,6 +300,7 @@ class ChatSession(Base):
     # Relationships
     user = relationship("User", back_populates="chat_sessions")
     topic_field = relationship("TopicField", back_populates="chat_sessions")
+    career_tree_node = relationship("CareerTreeNode", foreign_keys=[career_tree_node_id])
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
 
     # Composite index hint (will be created via migration/__init__)

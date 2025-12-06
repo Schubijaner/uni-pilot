@@ -7,9 +7,9 @@ from sqlalchemy.orm import Session
 
 from api.core.config import get_settings
 from api.core.exceptions import NotFoundError
-from api.prompts.chat_prompts import get_chat_system_prompt
+from api.prompts.chat_prompts import get_chat_system_prompt, get_chat_system_prompt_for_job
 from api.services.llm_service import LLMService
-from database.models import ChatMessage, ChatSession, TopicField
+from database.models import ChatMessage, ChatSession, TopicField, CareerTreeNode
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -23,31 +23,69 @@ class ChatService:
         self.llm_service = llm_service or LLMService()
 
     @staticmethod
-    def get_or_create_session(user_id: int, topic_field_id: int, db: Session) -> ChatSession:
+    def get_or_create_session(
+        user_id: int,
+        topic_field_id: Optional[int] = None,
+        career_tree_node_id: Optional[int] = None,
+        db: Session = None,
+    ) -> ChatSession:
         """
         Get existing chat session or create a new one.
 
         Args:
             user_id: User ID
-            topic_field_id: Topic field ID
+            topic_field_id: Optional topic field ID (for backward compatibility)
+            career_tree_node_id: Optional career tree node ID (job ID)
             db: Database session
 
         Returns:
             ChatSession object
+
+        Raises:
+            ValueError: If neither topic_field_id nor career_tree_node_id is provided
         """
-        session = (
-            db.query(ChatSession)
-            .filter(ChatSession.user_id == user_id, ChatSession.topic_field_id == topic_field_id)
-            .first()
-        )
+        if not topic_field_id and not career_tree_node_id:
+            raise ValueError("Either topic_field_id or career_tree_node_id must be provided")
+
+        # Try to find existing session
+        query = db.query(ChatSession).filter(ChatSession.user_id == user_id)
+        if topic_field_id:
+            query = query.filter(ChatSession.topic_field_id == topic_field_id)
+        if career_tree_node_id:
+            query = query.filter(ChatSession.career_tree_node_id == career_tree_node_id)
+
+        session = query.first()
 
         if not session:
-            session = ChatSession(user_id=user_id, topic_field_id=topic_field_id)
+            session = ChatSession(
+                user_id=user_id,
+                topic_field_id=topic_field_id,
+                career_tree_node_id=career_tree_node_id,
+            )
             db.add(session)
             db.commit()
             db.refresh(session)
 
         return session
+
+    @staticmethod
+    def get_or_create_job_session(user_id: int, job_id: int, db: Session) -> ChatSession:
+        """
+        Get existing chat session for a job or create a new one.
+
+        Args:
+            user_id: User ID
+            job_id: Career tree node ID (job, must be a leaf node)
+            db: Database session
+
+        Returns:
+            ChatSession object
+        """
+        return ChatService.get_or_create_session(
+            user_id=user_id,
+            career_tree_node_id=job_id,
+            db=db,
+        )
 
     @staticmethod
     def get_session(session_id: int, user_id: Optional[int], db: Session) -> ChatSession:
@@ -103,8 +141,9 @@ class ChatService:
         self,
         session_id: int,
         user_message_content: str,
-        topic_field: TopicField,
-        db: Session,
+        topic_field: Optional[TopicField] = None,
+        job: Optional[CareerTreeNode] = None,
+        db: Session = None,
     ) -> tuple[ChatMessage, ChatMessage]:
         """
         Send a user message and get LLM response.
@@ -112,7 +151,8 @@ class ChatService:
         Args:
             session_id: Chat session ID
             user_message_content: User message content
-            topic_field: Topic field for context
+            topic_field: Optional topic field for context (for backward compatibility)
+            job: Optional job (career tree node) for context
             db: Database session
 
         Returns:
@@ -120,9 +160,19 @@ class ChatService:
 
         Raises:
             NotFoundError: If session not found
+            ValueError: If neither topic_field nor job is provided
         """
         # Get session
         session = ChatService.get_session(session_id, None, db)
+
+        # Determine context (prefer job over topic_field)
+        if not job and session.career_tree_node_id:
+            job = db.query(CareerTreeNode).filter(CareerTreeNode.id == session.career_tree_node_id).first()
+        if not topic_field and session.topic_field_id:
+            topic_field = db.query(TopicField).filter(TopicField.id == session.topic_field_id).first()
+
+        if not job and not topic_field:
+            raise ValueError("Session must have either a job or topic_field")
 
         # Save user message
         user_message = ChatMessage(
@@ -145,8 +195,11 @@ class ChatService:
         if not recent_messages or recent_messages[-1].id != user_message.id:
             llm_messages.append({"role": "user", "content": user_message_content})
 
-        # Get system prompt
-        system_prompt = get_chat_system_prompt(topic_field)
+        # Get system prompt (prefer job-based prompt)
+        if job:
+            system_prompt = get_chat_system_prompt_for_job(job)
+        else:
+            system_prompt = get_chat_system_prompt(topic_field)
 
         try:
             # Call LLM
