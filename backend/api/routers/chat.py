@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 
 from api.core.exceptions import NotFoundError
 from api.dependencies import get_current_user, get_db
+from api.models.career import CareerTreeNodeResponse
 from api.models.chat import ChatMessageCreate, ChatMessageResponse, ChatSendMessageResponse, ChatSessionResponse
+from api.services.career_service import CareerService
 from api.services.chat_service import ChatService
-from database.models import TopicField, User
+from database.models import CareerTreeNode, TopicField, User
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
 
@@ -55,6 +57,7 @@ async def create_or_get_chat_session(
         id=session.id,
         user_id=session.user_id,
         topic_field_id=session.topic_field_id,
+        career_tree_node_id=session.career_tree_node_id,
         created_at=session.created_at,
         updated_at=session.updated_at,
         topic_field={
@@ -64,8 +67,69 @@ async def create_or_get_chat_session(
             "system_prompt": topic_field.system_prompt,
             "created_at": topic_field.created_at,
         },
+        job=None,
         message_count=message_count,
     )
+
+
+@router.post("/jobs/{job_id}/chat/sessions", response_model=ChatSessionResponse, status_code=status.HTTP_201_CREATED)
+async def create_or_get_job_chat_session(
+    job_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Create or get chat session for a job.
+
+    Args:
+        job_id: Career tree node ID (must be a leaf node)
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Chat session information
+
+    Raises:
+        HTTPException: If job not found or not a leaf node
+    """
+    try:
+        # Verify job exists and is a leaf node
+        job = CareerService.get_job(job_id, db)
+
+        session = ChatService.get_or_create_job_session(
+            user_id=current_user.id,
+            job_id=job_id,
+            db=db,
+        )
+
+        # Get message count
+        message_count = len(ChatService.get_messages(session.id, db=db))
+
+        # Build job response
+        job_response = CareerTreeNodeResponse(
+            id=job.id,
+            name=job.name,
+            description=job.description,
+            is_leaf=job.is_leaf,
+            level=job.level,
+            topic_field=None,
+            questions=None,
+            children=[],
+        )
+
+        return ChatSessionResponse(
+            id=session.id,
+            user_id=session.user_id,
+            topic_field_id=session.topic_field_id,
+            career_tree_node_id=session.career_tree_node_id,
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+            topic_field=None,
+            job=job_response,
+            message_count=message_count,
+        )
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.message)
 
 
 @router.get("/chat/sessions/{session_id}/messages", response_model=List[ChatMessageResponse])
@@ -128,12 +192,18 @@ async def send_chat_message(
         # Verify session belongs to user
         session = ChatService.get_session(session_id, current_user.id, db)
 
-        # Get topic field
-        topic_field = db.query(TopicField).filter(TopicField.id == session.topic_field_id).first()
-        if not topic_field:
+        # Get topic field and/or job
+        topic_field = None
+        job = None
+        if session.topic_field_id:
+            topic_field = db.query(TopicField).filter(TopicField.id == session.topic_field_id).first()
+        if session.career_tree_node_id:
+            job = db.query(CareerTreeNode).filter(CareerTreeNode.id == session.career_tree_node_id).first()
+
+        if not topic_field and not job:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Topic field for session {session_id} not found",
+                detail=f"Topic field or job for session {session_id} not found",
             )
 
         # Send message
@@ -142,6 +212,7 @@ async def send_chat_message(
             session_id=session_id,
             user_message_content=request.content,
             topic_field=topic_field,
+            job=job,
             db=db,
         )
 
@@ -191,11 +262,28 @@ async def get_user_chat_sessions(
         # Get topic field
         topic_field = db.query(TopicField).filter(TopicField.id == session.topic_field_id).first()
 
+        # Get job if session has career_tree_node_id
+        job_response = None
+        if session.career_tree_node_id:
+            job = db.query(CareerTreeNode).filter(CareerTreeNode.id == session.career_tree_node_id).first()
+            if job:
+                job_response = CareerTreeNodeResponse(
+                    id=job.id,
+                    name=job.name,
+                    description=job.description,
+                    is_leaf=job.is_leaf,
+                    level=job.level,
+                    topic_field=None,
+                    questions=None,
+                    children=[],
+                )
+
         result.append(
             ChatSessionResponse(
                 id=session.id,
                 user_id=session.user_id,
                 topic_field_id=session.topic_field_id,
+                career_tree_node_id=session.career_tree_node_id,
                 created_at=session.created_at,
                 updated_at=session.updated_at,
                 topic_field=(
@@ -209,6 +297,7 @@ async def get_user_chat_sessions(
                     if topic_field
                     else None
                 ),
+                job=job_response,
                 message_count=message_count,
             )
         )

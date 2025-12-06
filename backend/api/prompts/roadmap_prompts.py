@@ -171,7 +171,13 @@ Struktur die Roadmap folgendermaßen:
    - Bootcamps (item_type: "BOOTCAMP")
    - Zertifikate (item_type: "CERTIFICATE")
 
-5. WICHTIG: Die Endknoten (Leaf Nodes) müssen Berufe sein (item_type: "CAREER", is_career_goal: true)
+5. WICHTIG - item_type und is_semester_break:
+   - Für Semesterferien: Verwende einen gültigen item_type (z.B. "COURSE", "PROJECT", "SKILL") 
+     UND setze is_semester_break: true
+   - "SEMESTER_BREAK" ist KEIN gültiger item_type!
+   - Beispiel: {{"item_type": "COURSE", "title": "Online-Kurs in Python", "is_semester_break": true}}
+
+6. WICHTIG: Die Endknoten (Leaf Nodes) müssen Berufe sein (item_type: "CAREER", is_career_goal: true)
    - Z.B. "Full Stack Developer", "Data Scientist", etc.
    - Diese sind die ZIELE der Roadmap
 
@@ -271,7 +277,13 @@ Struktur die Roadmap folgendermaßen:
    - Bootcamps (item_type: "BOOTCAMP")
    - Zertifikate (item_type: "CERTIFICATE")
 
-5. WICHTIG: Der Endknoten (Leaf Node) muss der Beruf "{job_name}" sein (item_type: "CAREER", is_career_goal: true)
+5. WICHTIG - item_type und is_semester_break:
+   - Für Semesterferien: Verwende einen gültigen item_type (z.B. "COURSE", "PROJECT", "SKILL") 
+     UND setze is_semester_break: true
+   - "SEMESTER_BREAK" ist KEIN gültiger item_type!
+   - Beispiel: {{"item_type": "COURSE", "title": "Online-Kurs in Python", "is_semester_break": true}}
+
+6. WICHTIG: Der Endknoten (Leaf Node) muss der Beruf "{job_name}" sein (item_type: "CAREER", is_career_goal: true)
    - Dies ist das ZIEL der Roadmap
 
 Struktur-Beispiel:

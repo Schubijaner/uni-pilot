@@ -28,6 +28,7 @@ class CareerTreeNodeResponse(BaseModel):
     is_leaf: bool
     level: int
     topic_field: Optional[TopicFieldResponse] = None
+    questions: Optional[List[str]] = None  # Liste von Fragen, eine pro Kindknoten
     children: List["CareerTreeNodeResponse"] = []
 
     class Config:
@@ -101,4 +102,17 @@ class UserQuestionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class JobSelectRequest(BaseModel):
+    """Request to select a job (career tree node)."""
+
+    job_id: int  # career_tree_node_id of a leaf node
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "job_id": 1,
+            }
+        }
 

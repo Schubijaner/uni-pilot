@@ -5,7 +5,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from api.models.career import TopicFieldResponse
+from api.models.career import CareerTreeNodeResponse, TopicFieldResponse
 
 
 class ChatMessageCreate(BaseModel):
@@ -66,10 +66,12 @@ class ChatSessionResponse(BaseModel):
 
     id: int
     user_id: int
-    topic_field_id: int
+    topic_field_id: Optional[int] = None
+    career_tree_node_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     topic_field: Optional[TopicFieldResponse] = None
+    job: Optional[CareerTreeNodeResponse] = None
     message_count: Optional[int] = None
 
     class Config:
