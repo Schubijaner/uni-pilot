@@ -5,7 +5,6 @@
 
 import React, { createContext, useContext, useReducer, useCallback, type ReactNode } from 'react';
 import type { OnboardingState, OnboardingStep, UserProfile, Skill } from '~/types';
-import { DEFAULT_PROCESSED_SKILLS } from '~/data/mockData';
 import { getSkillsFromText } from '~/api/getSkillsFromText';
 
 // ============================================

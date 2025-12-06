@@ -4,11 +4,11 @@
  */
 
 import React from 'react';
-import type { FilterQuestion, FilterOption } from '~/types';
+import type { FilterQuestion, FilterOption, UserQuestion } from '~/types';
 import { Button, Card } from '~/components/ui';
 
 interface FilterQuestionsProps {
-  questions: FilterQuestion[];
+  questions: (FilterQuestion | UserQuestion)[];
   currentQuestionIndex: number;
   selectedOptions: Record<string, boolean>;
   onOptionSelect: (questionId: string, optionId: "true" | "false") => void;
@@ -34,7 +34,8 @@ export const FilterQuestions: React.FC<FilterQuestionsProps> = ({
     return null;
   }
 
-  const selectedOptionId = selectedOptions[currentQuestion.id];
+  const questionId = typeof currentQuestion.id === 'number' ? currentQuestion.id.toString() : currentQuestion.id;
+  const selectedOptionId = selectedOptions[questionId];
 
   return (
     <Card variant="glass" className="h-full">
@@ -60,20 +61,20 @@ export const FilterQuestions: React.FC<FilterQuestionsProps> = ({
 
       {/* Question */}
       <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-        {currentQuestion.question_text}
+        {'question_text' in currentQuestion ? currentQuestion.question_text : currentQuestion.question}
       </h3>
 
       {/* Options */}
       <div className="space-y-3 mb-8">
         <OptionButton
             option="Zustimmen"
-            isSelected={selectedOptionId}
-            onSelect={() => onOptionSelect(currentQuestion.id, "true")}
+            isSelected={selectedOptionId === true}
+            onSelect={() => onOptionSelect(questionId, "true")}
           />
           <OptionButton
             option="Ablehnen"
             isSelected={selectedOptionId === false}
-            onSelect={() => onOptionSelect(currentQuestion.id, "false")}
+            onSelect={() => onOptionSelect(questionId, "false")}
           />
       </div>
 

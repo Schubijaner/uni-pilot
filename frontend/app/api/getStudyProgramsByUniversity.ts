@@ -21,19 +21,6 @@ export async function getStudyProgramsByUniversity(
     universityId: number,
     params?: GetStudyProgramsByUniversityParams
 ): Promise<GetStudyProgramsByUniversityResponse> {
-    return {
-        "items": [
-            {
-                "id": 1,
-                "name": "Informatik",
-                "university_id": 1,
-                "degree_type": "Bachelor",
-                "created_at": "2024-01-01T00:00:00Z"
-            }
-        ],
-        "total": 1
-    };
-    
     const queryParams = new URLSearchParams();
     
     if (params?.degree_type) {

@@ -7,7 +7,30 @@ interface GetSkillsFromTextResponse {
 }
 
 export async function getSkillsFromText(text: string): Promise<GetSkillsFromTextResponse> {
-    // Mock response for now
+    // TODO: Replace with real API endpoint when available
+    // The backend doesn't currently have a skills extraction endpoint
+    // This could be implemented using the chat/LLM service or a dedicated endpoint
+    
+    // For now, return mock data
+    // When backend endpoint is available, uncomment the code below and remove the mock return
+    
+    /*
+    const response = await fetch(`${baseUrl}/skills/extract`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+    });
+    
+    if (!response.ok) {
+        throw new Error(`Failed to extract skills: ${response.statusText}`);
+    }
+    
+    return response.json();
+    */
+    
+    // Mock response - remove when backend endpoint is ready
     return {
         skills: [
             { name: 'Python', value: 85 },
@@ -19,19 +42,4 @@ export async function getSkillsFromText(text: string): Promise<GetSkillsFromText
         ],
         confidence: 0.85,
     };
-
-    // Actual API call (uncomment when backend is ready)
-    // const response = await fetch(`${baseUrl}/skills/extract`, {
-    //     method: 'POST',
-    //     headers: {
-    //         'Content-Type': 'application/json',
-    //     },
-    //     body: JSON.stringify({ text }),
-    // });
-    //
-    // if (!response.ok) {
-    //     throw new Error(`Failed to extract skills: ${response.statusText}`);
-    // }
-    //
-    // return response.json();
 }

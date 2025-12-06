@@ -196,18 +196,37 @@ function transformTreeToFlow(data: TreeData, onNodeClick: (node: TreeNode, event
   return { nodes, edges };
 }
 
-export default function CareerTree() {
+interface CareerTreeProps {
+  studyProgramId?: number;
+  token?: string;
+}
+
+export default function CareerTree({ studyProgramId = 1, token }: CareerTreeProps = {}) {
   const [treeData, setTreeData] = useState<TreeData | null>(null);
   const [popupContent, setPopupContent] = useState<{ title: string; description: string } | null>(null);
-
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchTree = async () => {
-      const response = await getTree('mock-token', 1);
-      setTreeData(response);
+      setIsLoading(true);
+      try {
+        const authToken = token || localStorage.getItem('auth_token') || undefined;
+        const response = await getTree(studyProgramId, authToken);
+        if (response && response.nodes && Array.isArray(response.nodes)) {
+          setTreeData(response);
+        } else {
+          console.error('Invalid tree data structure:', response);
+          setTreeData(null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch tree:', error);
+        setTreeData(null);
+      } finally {
+        setIsLoading(false);
+      }
     };
     fetchTree();
-  }, []);
+  }, [studyProgramId, token]);
 
   const handleNodeClick = useCallback((node: TreeNode, event: React.MouseEvent) => {
     setPopupContent({
@@ -223,6 +242,25 @@ export default function CareerTree() {
     }
     return transformTreeToFlow(treeData, handleNodeClick);
   }, [treeData, handleNodeClick]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto mb-2"></div>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">Lade Karrierebaum...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!treeData || nodes.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-gray-600 dark:text-gray-400">Kein Karrierebaum verfügbar</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ height: '100%', width: '100%' }}>

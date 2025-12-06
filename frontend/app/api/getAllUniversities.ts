@@ -23,19 +23,6 @@ interface GetAllUniversitiesParams {
 export async function getAllUniversities(
     params?: GetAllUniversitiesParams
 ): Promise<GetAllUniversitiesResponse> {
-    return {
-            "items": [
-                {
-                "id": 1,
-                "name": "Technische Universität München",
-                "abbreviation": "TUM",
-                "created_at": "2024-01-01T00:00:00Z"
-                }
-            ],
-            "total": 1,
-            "limit": 100,
-            "offset": 0
-            };
     const queryParams = new URLSearchParams();
     
     if (params?.search) {

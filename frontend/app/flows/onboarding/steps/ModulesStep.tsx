@@ -7,7 +7,6 @@ import React, { useEffect, useState } from 'react';
 import { getModulesByStudyProgram } from '~/api/getModulesByStudyProgram';
 import { Card, CardHeader, CardTitle, CardDescription, Checkbox } from '~/components/ui';
 import { useOnboarding } from '~/contexts';
-import { STUDY_MODULES } from '~/data/mockData';
 import type { Module } from '~/types';
 
 export const ModulesStep: React.FC = () => {
@@ -32,10 +31,11 @@ export const ModulesStep: React.FC = () => {
         setIsLoading(true);
         setError(null);
         const data = await getModulesByStudyProgram(parseInt(studyProgramId, 10));
-        setModules(data.items);
+        setModules(data?.items || []);
       } catch (err) {
         console.error('Failed to fetch modules:', err);
         setError('Module konnten nicht geladen werden');
+        setModules([]);
       } finally {
         setIsLoading(false);
       }
@@ -45,12 +45,12 @@ export const ModulesStep: React.FC = () => {
   }, [studyProgramId]);
 
   // Unique module types for filter
-  const moduleTypes = ['all', ...new Set(modules.map((m) => m.module_type))];
+  const moduleTypes = ['all', ...new Set((modules || []).map((m) => m.module_type))];
 
   // Filtered modules
   const filteredModules = filter === 'all'
-    ? modules
-    : modules.filter((m) => m.module_type === filter);
+    ? (modules || [])
+    : (modules || []).filter((m) => m.module_type === filter);
 
   // Group modules by semester
   const modulesBySemester = filteredModules.reduce((acc, module) => {
@@ -63,7 +63,7 @@ export const ModulesStep: React.FC = () => {
   }, {} as Record<number, Module[]>);
 
   // Sort semesters
-  const sortedSemesters = Object.keys(modulesBySemester)
+  const sortedSemesters = Object.keys(modulesBySemester || {})
     .map(Number)
     .sort((a, b) => a - b);
 
@@ -131,7 +131,7 @@ export const ModulesStep: React.FC = () => {
                     Semester {semester}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {modulesBySemester[semester].map((module) => (
+                    {(modulesBySemester[semester] || []).map((module) => (
                       <Checkbox
                         key={module.id}
                         label={module.name}

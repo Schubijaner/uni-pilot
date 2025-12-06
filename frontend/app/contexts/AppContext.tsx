@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useReducer, useCallback, type ReactNode } from 'react';
 import type { Skill, CareerPath } from '~/types';
-import { generateRoadmap } from '~/data/mockData';
+import { generateRoadmap as generateRoadmapAPI } from '~/api/generateRoadmap';
 
 // ============================================
 // State Definition
@@ -34,7 +34,7 @@ type AppAction =
   | { type: 'DESELECT_JOB'; payload: string }
   | { type: 'SET_SELECTED_JOBS'; payload: string[] }
   | { type: 'SET_USER_SKILLS'; payload: Skill[] }
-  | { type: 'GENERATE_ROADMAP'; payload: string }
+  | { type: 'GENERATE_ROADMAP'; payload: CareerPath }
   | { type: 'SET_AUTHENTICATED'; payload: boolean }
   | { type: 'TOGGLE_TODO'; payload: { semester: number; todoId: string } };
 
@@ -59,8 +59,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_USER_SKILLS':
       return { ...state, userSkills: action.payload };
     case 'GENERATE_ROADMAP': {
-      const roadmap = generateRoadmap(action.payload, state.userSkills);
-      return { ...state, currentCareerPath: roadmap };
+      return { ...state, currentCareerPath: action.payload };
     }
     case 'SET_AUTHENTICATED':
       return { ...state, isAuthenticated: action.payload };
@@ -98,7 +97,7 @@ interface AppContextType {
   toggleJob: (jobId: string) => void;
   isJobSelected: (jobId: string) => boolean;
   setUserSkills: (skills: Skill[]) => void;
-  generateRoadmap: (jobId: string) => void;
+  generateRoadmap: (topicFieldIds: number[], token: string) => Promise<void>;
   toggleTodo: (semester: number, todoId: string) => void;
   setAuthenticated: (value: boolean) => void;
 }
@@ -141,8 +140,21 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     dispatch({ type: 'SET_USER_SKILLS', payload: skills });
   }, []);
 
-  const generateRoadmapAction = useCallback((jobIds: number[]) => {
-    dispatch({ type: 'GENERATE_ROADMAP', payload: jobIds });
+  const generateRoadmapAction = useCallback(async (topicFieldIds: number[], token: string) => {
+    // For now, use the first topic field ID
+    // In the future, we might want to handle multiple topic fields
+    if (topicFieldIds.length === 0) {
+      console.error('No topic field IDs provided');
+      return;
+    }
+    
+    try {
+      const roadmap = await generateRoadmapAPI(topicFieldIds[0], token);
+      dispatch({ type: 'GENERATE_ROADMAP', payload: roadmap });
+    } catch (error) {
+      console.error('Failed to generate roadmap:', error);
+      throw error;
+    }
   }, []);
 
   const toggleTodo = useCallback((semester: number, todoId: string) => {
