@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useState, useMemo } from 'react';
-import { ReactFlow, Background, Controls, getStraightPath, BaseEdge, Handle, Position } from '@xyflow/react';
+import { ReactFlow, Background, Controls, getStraightPath, BaseEdge, Handle, Position, type Node, type Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { getTree } from '~/api/getTree';
 
@@ -89,7 +89,7 @@ function CustomLeaf({ data }: CustomNodeProps) {
         transition-all duration-300
         hover:from-indigo-700 hover:to-purple-700
         dark:hover:from-indigo-600 dark:hover:to-purple-600
-        hover:scale-[1.02] hover:shadow-xl
+        hover:scale-[1.02] hover:shadow-xl hover:z-10
         cursor-pointer
       "
     >
@@ -111,42 +111,6 @@ const nodeTypes = {
   'custom-root': CustomRoot,
   'custom-leaf': CustomLeaf,
 };
-
-function Popup({ content, onClose }: { content: { title: string; description: string } | null; onClose: () => void }) {
-  if (!content) return null;
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/50 z-40"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div 
-        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl z-50 animate-in fade-in zoom-in duration-300"
-      >
-        <div className="p-6">
-          <div className="flex justify-between items-start gap-4 mb-4">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{content.title}</h2>
-            <button 
-              onClick={onClose} 
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 flex-shrink-0"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <p className="text-gray-600 dark:text-gray-300">{content.description}</p>
-        </div>
-      </div>
-    </>
-  );
-}
-
-
 
 function transformTreeToFlow(data: TreeData, onNodeClick: (node: TreeNode, event: React.MouseEvent) => void) {
   const nodes: any[] = [];
@@ -197,36 +161,12 @@ function transformTreeToFlow(data: TreeData, onNodeClick: (node: TreeNode, event
 }
 
 interface CareerTreeProps {
-  studyProgramId?: number;
-  token?: string;
+  nodes?: Node[];
+  edges?: Edge[];
 }
 
-export default function CareerTree({ studyProgramId = 1, token }: CareerTreeProps = {}) {
-  const [treeData, setTreeData] = useState<TreeData | null>(null);
-  const [popupContent, setPopupContent] = useState<{ title: string; description: string } | null>(null);
+export default function CareerTree({ nodes, edges }: CareerTreeProps = {}) {
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchTree = async () => {
-      setIsLoading(true);
-      try {
-        const authToken = token || localStorage.getItem('auth_token') || undefined;
-        const response = await getTree(studyProgramId, authToken);
-        if (response && response.nodes && Array.isArray(response.nodes)) {
-          setTreeData(response);
-        } else {
-          console.error('Invalid tree data structure:', response);
-          setTreeData(null);
-        }
-      } catch (error) {
-        console.error('Failed to fetch tree:', error);
-        setTreeData(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchTree();
-  }, [studyProgramId, token]);
 
   const handleNodeClick = useCallback((node: TreeNode, event: React.MouseEvent) => {
     setPopupContent({
@@ -234,14 +174,13 @@ export default function CareerTree({ studyProgramId = 1, token }: CareerTreeProp
       description: node.description
     });
   }, []);
-  
 
-  const { nodes, edges } = useMemo(() => {
-    if (!treeData) {
-      return { nodes: [], edges: [] };
+  useEffect(() => {
+    if (nodes && edges) {
+      setIsLoading(false);
+      return;
     }
-    return transformTreeToFlow(treeData, handleNodeClick);
-  }, [treeData, handleNodeClick]);
+  }, [nodes, edges]);
 
   if (isLoading) {
     return (
@@ -254,7 +193,7 @@ export default function CareerTree({ studyProgramId = 1, token }: CareerTreeProp
     );
   }
 
-  if (!treeData || nodes.length === 0) {
+  if (!nodes || nodes.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
         <p className="text-gray-600 dark:text-gray-400">Kein Karrierebaum verfügbar</p>
@@ -264,8 +203,7 @@ export default function CareerTree({ studyProgramId = 1, token }: CareerTreeProp
 
   return (
     <div style={{ height: '100%', width: '100%' }}>
-      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView />
-      <Popup content={popupContent} onClose={() => setPopupContent(null)} />
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView minZoom={0.01}/>
     </div>
   );
 }

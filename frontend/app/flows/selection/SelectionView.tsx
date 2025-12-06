@@ -33,7 +33,7 @@ interface TreeData {
   nodes: TreeNode[]; // Nach Normalisierung durch getTree ist dies immer ein Array
 }
 
-function transformTreeToFlow(data: TreeData | null) {
+function transformTreeToFlow(data: TreeData | null, onNodeClick: (node: TreeNode, event: React.MouseEvent) => void): { nodes: any[]; edges: any[] } {
   const nodes: any[] = [];
   const edges: any[] = [];
   
@@ -41,20 +41,38 @@ function transformTreeToFlow(data: TreeData | null) {
   if (!data || !data.nodes || !Array.isArray(data.nodes)) {
     return { nodes, edges };
   }
-  
-  const processNode = (node: TreeNode, parentId: string | null, xOffset: number, siblingIndex: number, siblingCount: number) => {
+
+  const xSpacing = 250;
+  const ySpacing = 150;
+
+  // First pass: calculate subtree widths
+  const getSubtreeWidth = (node: TreeNode): number => {
+    if (!node.children || node.children.length === 0) {
+      return 1; // Leaf nodes have width of 1
+    }
+    // Sum of all children's subtree widths
+    return node.children.reduce((sum, child) => sum + getSubtreeWidth(child), 0);
+  };
+
+  // Second pass: position nodes based on subtree widths
+  const processNode = (
+    node: TreeNode, 
+    parentId: string | null, 
+    leftBound: number,  // Left edge of available space
+    rightBound: number  // Right edge of available space
+  ) => {
     const nodeId = `n${node.id}`;
-    const xSpacing = 250;
-    const ySpacing = 150;
     
-    // Calculate x position based on sibling index
-    const x = xOffset + (siblingIndex - (siblingCount - 1) / 2) * xSpacing;
-    const y = (node.level - 1) * ySpacing;
+    // Center node in its available space
+    const x = (leftBound + rightBound) / 2;
+    const y = node.level * ySpacing;
     
     nodes.push({
       id: nodeId,
       position: { x, y },
-      data: { label: node.name },
+      data: { label: node.name, description: node.description,
+        onClick: (event: React.MouseEvent) => onNodeClick(node, event)
+       },
       type: node.is_leaf ? "custom-leaf" : "custom-root",
     });
     
@@ -63,23 +81,44 @@ function transformTreeToFlow(data: TreeData | null) {
         id: `${parentId}-${nodeId}`,
         source: parentId,
         target: nodeId,
-        style: { stroke: '#6366f1', strokeWidth: 2 } // Custom color here
+        style: { stroke: '#6366f1', strokeWidth: 2 }
       });
     }
     
-    // Process children - add safety check
-    if (node.children && Array.isArray(node.children)) {
+    // Process children with proportional space allocation
+    if (node.children && Array.isArray(node.children) && node.children.length > 0) {
+      const totalWidth = rightBound - leftBound;
+      const childWidths = node.children.map(child => getSubtreeWidth(child));
+      const totalChildWidth = childWidths.reduce((sum, w) => sum + w, 0);
+      
+      let currentLeft = leftBound;
+      
       node.children.forEach((child, index) => {
-        processNode(child, nodeId, x, index, node.children.length);
+        // Allocate space proportionally based on subtree width
+        const childSpace = (childWidths[index] / totalChildWidth) * totalWidth;
+        const childRight = currentLeft + childSpace;
+        
+        processNode(child, nodeId, currentLeft, childRight);
+        
+        currentLeft = childRight;
       });
     }
   };
   
+  // Calculate total width needed
+  const totalTreeWidth = data.nodes.reduce((sum, node) => sum + getSubtreeWidth(node), 0);
+  const totalWidthPixels = totalTreeWidth * xSpacing;
+  
   // Process root nodes
-  data.nodes.forEach((node, index) => {
-    const rootSpacing = 600;
-    const xOffset = index * rootSpacing;
-    processNode(node, null, xOffset, 0, 1);
+  let currentLeft = 0;
+  data.nodes.forEach((node) => {
+    const nodeWidth = getSubtreeWidth(node);
+    const nodeSpace = (nodeWidth / totalTreeWidth) * totalWidthPixels;
+    const nodeRight = currentLeft + nodeSpace;
+    
+    processNode(node, null, currentLeft, nodeRight);
+    
+    currentLeft = nodeRight;
   });
   
   return { nodes, edges };
@@ -128,7 +167,7 @@ function collectLeafNodes(nodes: TreeNode[]): TreeNode[] {
 
 export const SelectionView: React.FC = () => {
   const navigate = useNavigate();
-  const { state, toggleJob, generateRoadmap } = useApp();
+  const { state, toggleJob, generateRoadmap, token } = useApp();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, boolean>>({});
   const [questions, setQuestions] = useState<UserQuestion[]>([]);
@@ -138,10 +177,18 @@ export const SelectionView: React.FC = () => {
 
   const [treeData, setTreeData] = useState<TreeData | null>(null);
 
+  const [popupContent, setPopupContent] = useState<{ title: string; description: string } | null>(null);
+
+  const handleNodeClick = useCallback((node: TreeNode, event: React.MouseEvent) => {
+    setPopupContent({
+      title: node.name,
+      description: node.description
+    });
+  }, []);
+
   useEffect(() => {
     const loadQuestions = async () => {
       setIsLoadingQuestions(true);
-      const token = localStorage.getItem('auth_token') || '';
       if (token) {
         try {
           const fetchQuestions = await getUserQuestions(token);
@@ -152,8 +199,6 @@ export const SelectionView: React.FC = () => {
         } finally {
           setIsLoadingQuestions(false);
         }
-      } else {
-        setIsLoadingQuestions(false);
       }
     };
     const fetchTree = async () => {
@@ -182,7 +227,7 @@ export const SelectionView: React.FC = () => {
     };
     fetchTree();
     loadQuestions();
-  }, []);
+  }, [token]);
 
   // Filter the tree based on user's answers
   const filteredTreeData = useMemo(() => {
@@ -206,12 +251,12 @@ export const SelectionView: React.FC = () => {
       return { nodes: [], edges: [] };
     }
     try {
-      return transformTreeToFlow(filteredTreeData);
+      return transformTreeToFlow(filteredTreeData, handleNodeClick);
     } catch (error) {
       console.error('Error transforming tree to flow:', error);
       return { nodes: [], edges: [] };
     }
-  }, [filteredTreeData]);
+  }, [filteredTreeData, handleNodeClick]);
 
   // Count visible leaf nodes for roadmap creation check
   const visibleLeafCount = useMemo(() => {
@@ -285,114 +330,113 @@ export const SelectionView: React.FC = () => {
 
   return (
     <Layout>
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
-          Finde deinen{' '}
-          <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-            Karriereweg
-          </span>
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 text-lg">
-          Beantworte die Fragen und entdecke passende Berufsfelder.
-        </p>
+      {/* Mobile Layout - Tree as background, Questions as overlay */}
+      <div className="lg:hidden fixed inset-0 flex flex-col">
+        {/* Tree - Full background */}
+        <div className="flex-1 relative">
+          <CareerTree nodes={nodes} edges={edges} />
+        </div>
+
+        <div className="absolute top-0 right-0 m-4 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-800">
+          <Button
+              size="lg"
+              disabled={!canCreateRoadmap}
+              onClick={handleCreateRoadmap}
+              rightIcon={
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              }
+            >
+              Roadmap erstellen
+            </Button>
+        </div>
+
+        {/* Filter Questions - Overlay at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
+          <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700">
+            <FilterQuestions
+              questions={questions}
+              currentQuestionIndex={currentQuestionIndex}
+              selectedOptions={selectedOptions}
+              onOptionSelect={handleOptionSelect}
+              onPrev={handlePrevQuestion}
+              onNext={handleNextQuestion}
+              canGoPrev={currentQuestionIndex > 0}
+              canGoNext={currentQuestionIndex < questions.length - 1}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Main Content */}
-      {isLoadingTree || isLoadingQuestions ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Lade Daten...</p>
-          </div>
+      {/* Desktop Layout - Tree as full background with overlay content */}
+      <div className="hidden lg:block fixed inset-0">
+        {/* Tree - Full background */}
+        <div className="absolute inset-0">
+          <CareerTree nodes={nodes} edges={edges} />
         </div>
-      ) : treeError ? (
-        <div className="flex items-center justify-center py-16">
-          <Card variant="glass" className="max-w-md">
-            <div className="text-center py-8">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Fehler beim Laden
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">{treeError}</p>
-              <Button onClick={() => window.location.reload()}>
-                Seite neu laden
-              </Button>
-            </div>
-          </Card>
-        </div>
-      ) : !treeData || nodes.length === 0 ? (
-        <div className="flex items-center justify-center py-16">
-          <Card variant="glass" className="max-w-md">
-            <div className="text-center py-8">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Keine Daten verfügbar
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                Der Karrierebaum konnte nicht geladen werden. Bitte versuche es später erneut.
-              </p>
-            </div>
-          </Card>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Filter Questions (Left on Desktop, Bottom on Mobile) */}
-          <div className="order-2 lg:order-1">
-            {questions.length > 0 ? (
-              <FilterQuestions
-                questions={questions}
-                currentQuestionIndex={currentQuestionIndex}
-                selectedOptions={selectedOptions}
-                onOptionSelect={handleOptionSelect}
-                onPrev={handlePrevQuestion}
-                onNext={handleNextQuestion}
-                canGoPrev={currentQuestionIndex > 0}
-                canGoNext={currentQuestionIndex < questions.length - 1}
-              />
-            ) : (
-              <Card variant="glass">
-                <div className="text-center py-8">
-                  <p className="text-gray-600 dark:text-gray-400">
-                    Keine Fragen verfügbar
-                  </p>
-                </div>
-              </Card>
-            )}
-          </div>
 
-          {/* Job Tree (Right on Desktop, Top on Mobile) */}
-          <div className="order-1 lg:order-2 lg:col-span-2" style={{ height: '600px' }}>
-            {treeData && treeData.nodes && treeData.nodes.length > 0 ? (
-              <div style={{ height: '100%', width: '100%' }}>
-                <CareerTree studyProgramId={treeData.study_program_id} />
-              </div>
-            ) : (
-              <Card variant="glass">
-                <div className="text-center py-8">
-                  <p className="text-gray-600 dark:text-gray-400">
-                    Kein Karrierebaum verfügbar
-                  </p>
+        {/* Content Overlay */}
+        <div className="relative z-10 h-full pointer-events-none">
+          <div className="container mx-auto max-w-7xl px-6 py-8 h-full flex flex-col">
+            {/* Header - Top left */}
+            <div className="pointer-events-auto mb-6 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 px-6 py-4 max-w-2xl">
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
+                  Finde deinen{' '}
+                  <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                    Karriereweg
+                  </span>
+                </h1>
+                <p className="text-gray-600 dark:text-gray-400 text-lg">
+                  Beantworte die Fragen und entdecke passende Berufsfelder.
+                </p>
+            </div>
+
+            {/* Filter Questions and Indigo div - Side by side */}
+            <div className="flex-1 mb-24 min-h-0 flex flex-row gap-4">
+              {/* Filter Questions */}
+              <div className="pointer-events-auto max-w-sm flex flex-col">
+                <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex-1 flex flex-col overflow-hidden">
+                  <FilterQuestions
+                    questions={questions}
+                    currentQuestionIndex={currentQuestionIndex}
+                    selectedOptions={selectedOptions}
+                    onOptionSelect={handleOptionSelect}
+                    onPrev={handlePrevQuestion}
+                    onNext={handleNextQuestion}
+                    canGoPrev={currentQuestionIndex > 0}
+                    canGoNext={currentQuestionIndex < questions.length - 1}
+                  />
                 </div>
-              </Card>
-            )}
+              </div>
+              
+              {/* Indigo div - Stretches to the right */}
+              {popupContent && <div className="pointer-events-auto flex-1">
+                <Card variant="glass" className="h-full flex flex-col p-6">
+                  <div className="flex justify-between items-start gap-4 mb-4">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">{popupContent.title}</h2>
+                    <button 
+                      onClick={setPopupContent.bind(null, null)} 
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 flex-shrink-0"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-300">{popupContent.description}</p>
+                </Card>
+              </div>}
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Create Roadmap Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-t border-gray-200 dark:border-gray-800 z-50">
+      <div className="hidden lg:block fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-t border-gray-200 dark:border-gray-800 z-50">
         <div className="container mx-auto max-w-6xl px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
+          <div className="flex items-center justify-end sm:justify-between">
+            <div className="flex-1 hidden sm:block">
               {!canCreateRoadmap ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   <span className="font-medium text-amber-600 dark:text-amber-400">
@@ -421,11 +465,9 @@ export const SelectionView: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Spacer for fixed bottom bar */}
-      <div className="h-24" />
     </Layout>
-  );
+  )
 };
 
+// ...existing code...
 export default SelectionView;

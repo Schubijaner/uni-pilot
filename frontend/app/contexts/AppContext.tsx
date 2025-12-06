@@ -3,9 +3,10 @@
  * Verwaltet ausgewählte Jobs und Roadmap-Daten
  */
 
-import React, { createContext, useContext, useReducer, useCallback, type ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, type ReactNode, useState, useEffect } from 'react';
 import type { Skill, CareerPath } from '~/types';
 import { generateRoadmap as generateRoadmapAPI } from '~/api/generateRoadmap';
+import { tokenStorage } from '~/utils/tokenStorage';
 
 // ============================================
 // State Definition
@@ -99,7 +100,12 @@ interface AppContextType {
   setUserSkills: (skills: Skill[]) => void;
   generateRoadmap: (topicFieldIds: number[], token: string) => Promise<void>;
   toggleTodo: (semester: number, todoId: string) => void;
+  isAuthenticated: boolean;
   setAuthenticated: (value: boolean) => void;
+  token: string | null;
+  login: (token: string) => void;
+  logout: () => void;
+  isLoading: boolean;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -114,6 +120,49 @@ interface AppProviderProps {
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check for existing token on mount
+  useEffect(() => {
+    const storedToken = tokenStorage.getToken();
+    if (storedToken) {
+      setToken(storedToken);
+      setIsAuthenticated(true);
+    }
+    setIsLoading(false);
+  }, []);
+
+  // Check for existing token on mount
+  useEffect(() => {
+    const storedToken = tokenStorage.getToken();
+    if (storedToken) {
+      setToken(storedToken);
+      setIsAuthenticated(true);
+    }
+    setIsLoading(false);
+  }, []);
+
+  const login = (newToken: string) => {
+    tokenStorage.setToken(newToken);
+    setToken(newToken);
+    setIsAuthenticated(true);
+  };
+
+  const logout = () => {
+    tokenStorage.removeToken();
+    setToken(null);
+    setIsAuthenticated(false);
+  };
+
+  const setAuthenticated = (value: boolean) => {
+    setIsAuthenticated(value);
+    if (!value) {
+      tokenStorage.removeToken();
+      setToken(null);
+    }
+  };
 
   const selectJob = useCallback((jobId: string) => {
     dispatch({ type: 'SELECT_JOB', payload: jobId });
@@ -161,10 +210,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     dispatch({ type: 'TOGGLE_TODO', payload: { semester, todoId } });
   }, []);
 
-  const setAuthenticated = useCallback((value: boolean) => {
-    dispatch({ type: 'SET_AUTHENTICATED', payload: value });
-  }, []);
-
   const value: AppContextType = {
     state,
     selectJob,
@@ -174,7 +219,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setUserSkills,
     generateRoadmap: generateRoadmapAction,
     toggleTodo,
+    isAuthenticated,
     setAuthenticated,
+    token,
+    login,
+    logout,
+    isLoading,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

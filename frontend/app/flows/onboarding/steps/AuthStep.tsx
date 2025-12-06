@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router';
 import { useApp } from '~/contexts';
 import { useOnboarding } from '~/contexts';
 import createUser from '~/api/createUser';
+import { logIn } from '~/api/token';
 
 type AuthMode = 'login' | 'signup';
 
@@ -27,7 +28,7 @@ interface FormErrors {
 
 export const AuthStep: React.FC = () => {
   const navigate = useNavigate();
-  const { setAuthenticated, setUserSkills } = useApp();
+  const { login, setUserSkills } = useApp(); 
   const { state } = useOnboarding();
   const [mode, setMode] = useState<AuthMode>('signup');
   const [isLoading, setIsLoading] = useState(false);
@@ -73,9 +74,10 @@ export const AuthStep: React.FC = () => {
     setErrors({});
 
     try {
+      let token: string;
       if (mode === 'signup') {
         // Call createUser API
-        await createUser({
+        const response = await createUser({
           email: formData.email,
           password: formData.password,
           firstName: state.userData.profile.firstName,
@@ -88,14 +90,20 @@ export const AuthStep: React.FC = () => {
             value: skill.value,
           })),
         });
+        token = response.token;
       } else {
         // TODO: Implement login API call
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const response = await logIn(
+          formData.email,
+          formData.password,
+        );
+        token = response.token;
       }
 
       // Set user skills from onboarding
       setUserSkills(state.processedSkills);
-      setAuthenticated(true);
+      
+      login(token);
 
       // Navigate to selection view
       navigate('/selection');

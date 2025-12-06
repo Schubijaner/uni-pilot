@@ -38,8 +38,7 @@ interface ProfileResponse {
 }
 
 interface CreateUserResponse {
-  user: RegisterResponse;
-  profile: ProfileResponse;
+  token: string;
 }
 
 export async function createUser(params: CreateUserParams): Promise<CreateUserResponse> {
@@ -53,29 +52,6 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
     completedModules,
     skills,
   } = params;
-
-  // Mock return data for now
-  return {
-    user: {
-      id: 1,
-      email: email,
-      first_name: firstName,
-      last_name: lastName,
-      created_at: new Date().toISOString(),
-      token: "mock-jwt-token-12345",
-    },
-    profile: {
-      id: 1,
-      user_id: 1,
-      university_id: universityId,
-      study_program_id: studyProgramId,
-      current_semester: 1,
-      skills: skills.map((s) => `${s.label}:${s.value}`).join(', '),
-      selected_topic_field_id: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  };
 
   // Step 1: Register the user
   const registerResponse = await fetch(`${baseUrl}/auth/register`, {
@@ -102,8 +78,32 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
     throw new Error(`Registration failed: ${registerResponse.statusText}`);
   }
 
-  const userData: RegisterResponse = await registerResponse.json();
-  const token = userData.token;
+  //Step 1.5: Get token
+  const logInResponse = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      password,
+    }),
+  });
+
+  if (!logInResponse.ok) {
+    const errorData = await logInResponse.json().catch(() => ({}));
+    if (logInResponse.status === 400) {
+      throw new Error(errorData.message || 'Ungültige Anmeldedaten');
+    }
+    if (logInResponse.status === 422) {
+      throw new Error(errorData.message || 'Validierungsfehler');
+    }
+    throw new Error(`Login failed: ${logInResponse.statusText}`);
+  }
+
+  const loginData = await logInResponse.json();
+  const token = loginData.access_token;
+  const userData = loginData.user as RegisterResponse;
 
   // Step 2: Create/Update user profile
   const skillsString = skills.map((s) => `${s.label}:${s.value}`).join(', ');
@@ -146,8 +146,7 @@ export async function createUser(params: CreateUserParams): Promise<CreateUserRe
   await Promise.all(modulePromises);
 
   return {
-    user: userData,
-    profile: profileData,
+    token: token,
   };
 }
 
