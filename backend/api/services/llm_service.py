@@ -145,11 +145,25 @@ class LLMService:
             if not content:
                 raise LLMError("Empty response from Bedrock API")
 
+            # Check if response was truncated (stop_reason indicates why generation stopped)
+            stop_reason = response_body.get("stop_reason")
+            was_truncated = stop_reason == "max_tokens"
+            if was_truncated:
+                logger.warning(
+                    f"Response was truncated due to max_tokens limit ({max_tokens}). "
+                    f"Response may be incomplete."
+                )
+
             # Extract text from response
             text_content = ""
             for block in content:
                 if block.get("type") == "text":
                     text_content += block.get("text", "")
+
+            # Store truncation flag in response for later handling
+            # We'll attach it as metadata (hack: prefix with special marker)
+            if was_truncated:
+                text_content = f"__TRUNCATED__{text_content}"
 
             return text_content
 
@@ -241,16 +255,24 @@ class LLMService:
 
         messages = [{"role": "user", "content": prompt}]
 
+        # Use higher max_tokens for roadmap generation (roadmaps can be large)
+        # Claude Sonnet supports up to 8192 tokens for output
         response_text = self._invoke_model(
             model_id=self.model_id_roadmap,
             messages=messages,
             system_prompt=None,
             temperature=temp,
-            max_tokens=4096,
+            max_tokens=8192,  # Increased from 4096 to handle large roadmaps
         )
 
         # Parse JSON response
         try:
+            # Check if response was marked as truncated
+            was_truncated = response_text.startswith("__TRUNCATED__")
+            if was_truncated:
+                response_text = response_text[13:]  # Remove marker
+                logger.warning("Processing truncated response - attempting to salvage partial JSON")
+
             # Try to extract JSON from response (sometimes LLM adds markdown)
             response_text = response_text.strip()
             if response_text.startswith("```json"):
@@ -266,11 +288,88 @@ class LLMService:
                     response_text = response_text[:-3]
                 response_text = response_text.strip()
 
+            # Try to fix incomplete JSON if truncated
+            if was_truncated or (not response_text.endswith("}") and not response_text.endswith("]")):
+                logger.warning("Response appears incomplete - attempting to fix JSON structure")
+                
+                # Find the items array and try to salvage what we can
+                items_start = response_text.find('"items": [')
+                if items_start > 0:
+                    # Find the last complete item in the array
+                    items_content = response_text[items_start + 9:]  # After '"items": ['
+                    
+                    # Find last complete object by counting braces, handling strings properly
+                    item_braces = 0
+                    last_complete_item = -1
+                    in_string = False
+                    escape_next = False
+                    
+                    for i, char in enumerate(items_content):
+                        if escape_next:
+                            escape_next = False
+                            continue
+                        if char == '\\':
+                            escape_next = True
+                            continue
+                        if char == '"' and not escape_next:
+                            in_string = not in_string
+                            continue
+                        if not in_string:
+                            if char == "{":
+                                item_braces += 1
+                            elif char == "}":
+                                item_braces -= 1
+                                if item_braces == 0:
+                                    last_complete_item = items_start + 9 + i
+                    
+                    if last_complete_item > 0:
+                        # Close the items array and root object
+                        response_text = response_text[:last_complete_item + 1] + "\n  ]\n}"
+                        logger.info(f"Fixed truncated JSON by closing items array at position {last_complete_item + 1}")
+                    else:
+                        # Fallback: try to find any complete item by looking for "}" followed by "," or "]"
+                        # This handles cases where we're in the middle of a field
+                        last_comma_or_bracket = max(
+                            response_text.rfind('},\n'),
+                            response_text.rfind('},'),
+                            response_text.rfind('}\n')
+                        )
+                        if last_comma_or_bracket > items_start:
+                            # Found a complete item, close from there
+                            close_pos = last_comma_or_bracket + 1
+                            response_text = response_text[:close_pos] + "\n  ]\n}"
+                            logger.info(f"Fixed truncated JSON using fallback at position {close_pos}")
+                        else:
+                            # Last resort: just close what we have
+                            response_text = response_text.rstrip()
+                            # Remove trailing comma if present
+                            if response_text.endswith(","):
+                                response_text = response_text[:-1]
+                            # Close items array and root
+                            if not response_text.endswith("]"):
+                                response_text += "\n  ]"
+                            if not response_text.endswith("}"):
+                                response_text += "\n}"
+                            logger.warning("Applied last-resort JSON repair")
+
             parsed_response = json.loads(response_text)
+            
+            if was_truncated:
+                logger.warning(
+                    f"Successfully parsed truncated response. "
+                    f"Roadmap may be incomplete with {len(parsed_response.get('items', []))} items."
+                )
+            
             return parsed_response
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Response text: {response_text[:500]}")
+            # Log more of the response for debugging (first 2000 chars instead of 500)
+            response_preview = response_text[:2000] if len(response_text) > 2000 else response_text
+            logger.error(f"Response text (first 2000 chars): {response_preview}")
+            if len(response_text) > 2000:
+                logger.error(f"Response text (last 500 chars): {response_text[-500:]}")
+            logger.error(f"Response length: {len(response_text)} characters")
+            logger.error(f"Error position: line {e.lineno}, column {e.colno}")
             raise LLMError(f"Failed to parse JSON response from LLM: {e}")
 
