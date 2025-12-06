@@ -13,9 +13,13 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///uni_pilot.db"
 
     # AWS Bedrock Configuration
-    AWS_REGION: str = "eu-central-1"
-    AWS_ACCESS_KEY_ID: str | None = None  # Optional, can come from IAM Role
-    AWS_SECRET_ACCESS_KEY: str | None = None  # Optional, can come from IAM Role
+    # Default region: us-east-1 (matches sample script)
+    # Can be overridden via AWS_REGION environment variable or aws configure
+    AWS_REGION: str = "us-east-1"
+    # Optional: Only set if not using aws configure or IAM roles
+    # If None, boto3 will use standard credential chain (aws configure, IAM role, etc.)
+    AWS_ACCESS_KEY_ID: str | None = None
+    AWS_SECRET_ACCESS_KEY: str | None = None
     BEDROCK_MODEL_CHAT: str = "anthropic.claude-3-haiku-20240307-v1:0"
     BEDROCK_MODEL_ROADMAP: str = "anthropic.claude-3-sonnet-20240229-v1:0"
 

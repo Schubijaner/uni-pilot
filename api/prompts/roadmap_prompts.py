@@ -146,8 +146,11 @@ Kontext:
 - Themenfeld: {topic_field.name}
 - Beschreibung: {topic_field.description or "Keine Beschreibung verfügbar"}
 
-Verfügbare Module aus dem Modulhandbuch:
+Verfügbare Module aus dem Modulhandbuch (noch NICHT abgeschlossen):
 {modules_json}
+
+WICHTIG: Diese Module sind noch nicht vom Studierenden abgeschlossen. 
+Die Roadmap sollte diese Module in die Planung einbeziehen, da sie noch zu absolvieren sind.
 
 WICHTIG - Die Roadmap muss eine HIERARCHISCHE STRUKTUR haben:
 1. Root-Level Items: Semester-Blöcke (z.B. "Semester {current_semester}", "Semester {current_semester + 1}")

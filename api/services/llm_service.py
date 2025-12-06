@@ -33,15 +33,45 @@ class LLMService:
         self.model_id_roadmap = model_id_roadmap or settings.BEDROCK_MODEL_ROADMAP
 
         # Initialize Bedrock client
+        # Use explicit credentials if provided, otherwise use AWS standard credential chain
+        # (aws configure, IAM role, environment variables, etc.)
         try:
-            self.bedrock_client = boto3.client(
-                service_name="bedrock-runtime",
-                region_name=settings.AWS_REGION,
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            client_kwargs = {
+                "service_name": "bedrock-runtime",
+                "region_name": settings.AWS_REGION,
+            }
+
+            # Only add explicit credentials if both are provided
+            # Otherwise, boto3 will use the standard credential chain
+            if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+                logger.info("Using explicit AWS credentials from config")
+                client_kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
+                client_kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
+            else:
+                logger.info(
+                    f"Using AWS standard credential chain (aws configure, IAM role, etc.) "
+                    f"for region {settings.AWS_REGION}"
+                )
+
+            self.bedrock_client = boto3.client(**client_kwargs)
+
+            # Test the client by checking if we can access the service
+            # This will raise an exception if credentials are invalid
+            logger.info(f"Bedrock client initialized successfully for region {settings.AWS_REGION}")
+
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")
+            error_msg = e.response.get("Error", {}).get("Message", str(e))
+            logger.error(
+                f"Failed to initialize Bedrock client: {error_code} - {error_msg}. "
+                f"Please check your AWS credentials and Bedrock model access."
             )
+            self.bedrock_client = None
         except Exception as e:
-            logger.error(f"Failed to initialize Bedrock client: {e}")
+            logger.error(
+                f"Failed to initialize Bedrock client: {e}. "
+                f"Please ensure AWS credentials are configured via 'aws configure' or environment variables."
+            )
             # For development, we might not have AWS credentials yet
             self.bedrock_client = None
 
@@ -70,7 +100,12 @@ class LLMService:
             LLMError: If API call fails
         """
         if not self.bedrock_client:
-            raise LLMError("Bedrock client not initialized. Check AWS credentials.")
+            raise LLMError(
+                "Bedrock client not initialized. "
+                "Please configure AWS credentials using 'aws configure' or set AWS_ACCESS_KEY_ID and "
+                "AWS_SECRET_ACCESS_KEY environment variables. "
+                "Also ensure Bedrock model access is enabled in AWS Console."
+            )
 
         try:
             # Format messages for Claude API
@@ -122,10 +157,32 @@ class LLMService:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
             error_msg = e.response.get("Error", {}).get("Message", str(e))
             logger.error(f"Bedrock API error: {error_code} - {error_msg}")
-            raise LLMError(f"AWS Bedrock API error: {error_code} - {error_msg}")
+
+            # Provide helpful error messages for common errors
+            if error_code == "AccessDeniedException":
+                raise LLMError(
+                    f"AWS Bedrock access denied: {error_msg}. "
+                    "Please check IAM permissions and ensure Bedrock model access is enabled in AWS Console."
+                )
+            elif error_code == "ValidationException":
+                raise LLMError(f"AWS Bedrock validation error: {error_msg}")
+            elif error_code == "ModelNotReadyException":
+                raise LLMError(
+                    f"Bedrock model not ready: {error_msg}. "
+                    "The model may still be initializing. Please try again in a few moments."
+                )
+            else:
+                raise LLMError(f"AWS Bedrock API error ({error_code}): {error_msg}")
 
         except BotoCoreError as e:
             logger.error(f"Boto3 error: {e}")
+            error_msg = str(e)
+            if "Unable to locate credentials" in error_msg or "NoCredentialsError" in error_msg:
+                raise LLMError(
+                    "AWS credentials not found. "
+                    "Please configure credentials using 'aws configure' or set AWS_ACCESS_KEY_ID and "
+                    "AWS_SECRET_ACCESS_KEY environment variables."
+                )
             raise LLMError(f"Boto3 error: {e}")
 
         except json.JSONDecodeError as e:

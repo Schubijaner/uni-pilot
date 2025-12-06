@@ -181,8 +181,32 @@ class RoadmapService:
             logger.warning(f"Roadmap for topic field {topic_field.id} already exists. Returning existing.")
             return existing
 
-        # Get available modules for study program
-        available_modules = db.query(Module).filter(Module.study_program_id == study_program.id).all()
+        # Get available modules for study program that the user has NOT completed
+        # Exclude modules where UserModuleProgress.completed = True for this user
+        from database.models import UserModuleProgress
+        from sqlalchemy import not_
+        
+        # Get IDs of completed modules for this user
+        completed_module_ids_subquery = (
+            db.query(UserModuleProgress.module_id)
+            .filter(
+                UserModuleProgress.user_id == user_profile.user_id,
+                UserModuleProgress.completed == True,
+            )
+        )
+        
+        # Get all modules for study program, excluding completed ones
+        available_modules = (
+            db.query(Module)
+            .filter(Module.study_program_id == study_program.id)
+            .filter(not_(Module.id.in_(completed_module_ids_subquery)))
+            .all()
+        )
+        
+        logger.info(
+            f"Found {len(available_modules)} available (not completed) modules "
+            f"for user {user_profile.user_id} in study program {study_program.id}"
+        )
 
         # Generate prompt
         prompt = generate_roadmap_prompt(study_program, user_profile, topic_field, available_modules)
