@@ -6,8 +6,8 @@ Dieses Dokument beschreibt das vollständige Datenbankschema für die Uni Pilot 
 
 - **User Management**: Registrierung, Login und Profilverwaltung
 - **Onboarding**: Erfassung von Universität, Studiengang, Semester und Modulen
-- **Career Tree**: Hierarchische Struktur zur Darstellung von Karrierepfaden und Themenfeldern
-- **Roadmaps**: Zeitlich strukturierte Lernpfade mit Semester- und Semesterferien-Planung
+- **Themenfelder-Tree (Career Tree)**: Hierarchische Struktur zur Navigation zu Themenfeldern (Leaf Nodes = TopicFields)
+- **Roadmap Tree**: Hierarchische Struktur der Karrierewege mit zeitlicher Strukturierung (Leaf Nodes = Berufe)
 - **Chat-Funktionalität**: Pro Themenfeld ein eigener Chat mit System-Prompts
 - **Progress Tracking**: Verfolgung des Fortschritts bei Modulen und Roadmap-Items
 
@@ -145,9 +145,9 @@ Karriere-Themenfelder (z.B. Full Stack Development, Data Science).
 
 ---
 
-### 7. CareerTreeNode (Karrierebaum-Knoten)
+### 7. CareerTreeNode (Themenfelder-Tree Knoten)
 
-Knoten im hierarchischen Karrierebaum.
+Knoten im hierarchischen Themenfelder-Tree. **Leaf Nodes = TopicFields**.
 
 | Attribut | Typ | Beschreibung | Constraints |
 |----------|-----|--------------|-------------|
@@ -165,7 +165,11 @@ Knoten im hierarchischen Karrierebaum.
 - Many-to-One: `TopicField` (via `topic_field_id`, wenn `is_leaf = True`)
 - Many-to-Many: `CareerTreeNode` (selbstreferenzierend, via `career_tree_relationships`)
 
-**Hinweis:** Der Career Tree ist studiengang-spezifisch. Endknoten (`is_leaf = True`) verweisen auf ein `TopicField`.
+**Hinweis:** 
+- Der Themenfelder-Tree ist studiengang-spezifisch.
+- **Hierarchische Struktur**: Parent-Child Beziehungen über `career_tree_relationships`
+- **Leaf Nodes**: Endknoten (`is_leaf = True`) verweisen auf ein `TopicField` (`topic_field_id`)
+- **Zweck**: Navigation zu verfügbaren Themenfeldern für einen Studiengang
 
 ---
 
@@ -190,18 +194,22 @@ Roadmap für ein spezifisches Themenfeld.
 
 ### 9. RoadmapItem (Roadmap-Eintrag)
 
-Einzelner Eintrag in einer Roadmap (zeitlich strukturiert).
+Einzelner Eintrag in einer Roadmap. **Teil eines hierarchischen Roadmap Trees** - Leaf Nodes sind Berufe (Ziel).
 
 | Attribut | Typ | Beschreibung | Constraints |
 |----------|-----|--------------|-------------|
 | `id` | Integer | Primärschlüssel | PK, Auto-Increment |
 | `roadmap_id` | Integer | Referenz zu Roadmap | FK, Not Null |
+| `parent_id` | Integer | Referenz zu Parent-RoadmapItem (für Tree-Struktur) | FK, Nullable |
 | `item_type` | Enum | Typ des Eintrags | Not Null |
 | `title` | String(255) | Titel | Not Null |
 | `description` | Text | Beschreibung | Nullable |
 | `semester` | Integer | Semester (wenn während Semester) | Nullable |
 | `is_semester_break` | Boolean | In Semesterferien? | Default: False |
-| `order` | Integer | Reihenfolge in Roadmap | Default: 0 |
+| `order` | Integer | Reihenfolge bei Geschwistern | Default: 0 |
+| `level` | Integer | Tiefe im Tree (0 = Root) | Default: 0 |
+| `is_leaf` | Boolean | Ist Endknoten (Beruf)? | Default: False |
+| `is_career_goal` | Boolean | Ist dieser Item ein Beruf (Ziel)? | Default: False |
 | `module_id` | Integer | Referenz zu Module (optional) | FK, Nullable |
 | `is_important` | Boolean | Besonders wichtig? | Default: False |
 | `created_at` | DateTime | Erstellungsdatum | Default: UTC Now |
@@ -215,13 +223,28 @@ Einzelner Eintrag in einer Roadmap (zeitlich strukturiert).
 - `CERTIFICATE`: Zertifikat
 - `INTERNSHIP`: Praktikum
 - `BOOTCAMP`: Bootcamp
+- `CAREER`: Beruf (für Leaf Nodes)
 
 **Relationen:**
 - Many-to-One: `Roadmap` (via `roadmap_id`)
+- Many-to-One: `RoadmapItem` (via `parent_id`, selbstreferenzierend für Tree-Struktur)
 - Many-to-One: `Module` (via `module_id`, optional)
 - Many-to-Many: `User` (via `user_roadmap_items`)
 
-**Hinweis:** Zeitliche Strukturierung erfolgt über `semester` (während Semester) und `is_semester_break` (Semesterferien).
+**Wichtige Hinweise:**
+- **Hierarchische Struktur**: RoadmapItems bilden einen Tree durch `parent_id` Beziehungen
+- **Leaf Nodes = Berufe**: Endknoten (`is_leaf = True`) sind Berufe und sollten `is_career_goal = True` haben
+- **Zeitliche Strukturierung**: Über `semester` (während Semester) und `is_semester_break` (Semesterferien)
+- **Order**: Sortierung bei Geschwister-Nodes auf gleicher Hierarchie-Ebene
+- **Level**: Tiefe im Tree (0 = Root, 1+ = verschachtelt)
+
+**Beispiel-Struktur:**
+```
+RoadmapItem (id=1, level=0, title="Semester 3", parent_id=null)
+  └── RoadmapItem (id=2, level=1, title="Modul: Web Development", parent_id=1)
+  └── RoadmapItem (id=3, level=1, title="Skill: HTML/CSS", parent_id=1)
+      └── RoadmapItem (id=4, level=2, title="Full Stack Developer", parent_id=3, is_leaf=true, is_career_goal=true)
+```
 
 ---
 
@@ -393,12 +416,13 @@ User ──(1:N)── UserProfile
 User ──(1:N)── ChatSession
 User ──(1:N)── UserQuestion
 
-TopicField ──(1:N)── CareerTreeNode (Endknoten)
+TopicField ──(1:N)── CareerTreeNode (Endknoten des Themenfelder-Trees)
 TopicField ──(1:N)── Roadmap
 TopicField ──(1:N)── ChatSession
 TopicField ──(1:N)── Recommendation
 
-Roadmap ──(1:N)── RoadmapItem
+Roadmap ──(1:N)── RoadmapItem (hierarchisch: parent_id selbstreferenzierend)
+RoadmapItem ──(N:1)── RoadmapItem (selbstreferenzierend, Parent-Child für Tree-Struktur)
 
 ChatSession ──(1:N)── ChatMessage
 
@@ -480,7 +504,9 @@ CareerTreeNode ──(N:M)── CareerTreeNode (via career_tree_relationships)
                   │ system_prompt│
                   └─────────────┘
                       │
-                      ├──(1:N)──► Roadmap ──(1:N)──► RoadmapItem
+                      ├──(1:N)──► Roadmap ──(1:N)──► RoadmapItem (hierarchisch)
+                      │                              │
+                      │                              └──(N:1)──► RoadmapItem (selbstref.)
                       │
                       ├──(1:N)──► ChatSession ──(1:N)──► ChatMessage
                       │
@@ -545,12 +571,28 @@ Module ──(1:N)──► ModuleImport
 - **Grund:** Bessere Trennung von Authentifizierungsdaten (User) und Profildaten (UserProfile)
 - **Vorteil:** Flexibilität bei Erweiterungen, klarere Datenstruktur
 
-### 2. Career Tree als selbstreferenzielle Struktur
-- **Grund:** Ermöglicht flexible, hierarchische Darstellung von Karrierepfaden
+### 2. Themenfelder-Tree (Career Tree) als selbstreferenzielle Struktur
+- **Grund:** Ermöglicht flexible, hierarchische Navigation zu Themenfeldern
 - **Implementierung:** Via `career_tree_relationships` Zwischentabelle
-- **Endknoten:** Verweisen auf `TopicField` (`is_leaf = True`)
+- **Endknoten (Leaf Nodes):** Verweisen auf `TopicField` (`is_leaf = True`)
+- **Zweck:** Hierarchische Navigation zu verfügbaren Themenfeldern für einen Studiengang
 
-### 3. Zeitliche Strukturierung in RoadmapItem
+### 3. Hierarchische Struktur in RoadmapItem (Roadmap Tree)
+
+RoadmapItems bilden einen **hierarchischen Tree**:
+- **Parent-Child Beziehungen**: Über `parent_id` (selbstreferenzierend)
+- **Leaf Nodes = Berufe**: Endknoten (`is_leaf = true`) mit `is_career_goal = true` sind Berufe (Ziele)
+- **Level**: Tiefe im Tree (`level` Feld)
+- **Zeitliche Struktur**: Kombiniert mit hierarchischer Struktur (`semester`, `is_semester_break`)
+
+**Beispiel:**
+```
+Semester 3 (level=0, parent_id=null)
+  └── Modul: Web Development (level=1, parent_id=1)
+      └── Full Stack Developer (level=2, parent_id=2, is_leaf=true, is_career_goal=true)
+```
+
+### 4. Zeitliche Strukturierung in RoadmapItem
 - **Semester:** `semester` Feld für Items während des Semesters
 - **Semesterferien:** `is_semester_break` Flag für Items in den Ferien
 - **Flexibilität:** Beide Felder können kombiniert werden
@@ -617,7 +659,7 @@ Bei Implementierung mit SQLAlchemy + Alembic:
 
 3. **Enum-Typen:**
    - `ModuleType`: `REQUIRED`, `ELECTIVE`
-   - `RoadmapItemType`: `COURSE`, `MODULE`, `PROJECT`, `SKILL`, `BOOK`, `CERTIFICATE`, `INTERNSHIP`, `BOOTCAMP`
+   - `RoadmapItemType`: `COURSE`, `MODULE`, `PROJECT`, `SKILL`, `BOOK`, `CERTIFICATE`, `INTERNSHIP`, `BOOTCAMP`, `CAREER`
 
 ---
 

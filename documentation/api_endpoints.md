@@ -364,11 +364,11 @@ Authorization: Bearer <token>
 
 ## Career Tree & Topic Fields
 
-### 11. Get Career Tree for Study Program
+### 11. Get Career Tree (Themenfelder-Tree) for Study Program
 
 **GET** `/study-programs/{study_program_id}/career-tree`
 
-Gibt den Career Tree für einen Studiengang zurück (hierarchische Struktur).
+Gibt den Themenfelder-Tree für einen Studiengang zurück (hierarchische Struktur). **Leaf Nodes = TopicFields**.
 
 **Path Parameters:**
 - `study_program_id` (integer): ID des Studiengangs
@@ -566,15 +566,76 @@ Authorization: Bearer <token>
 
 **GET** `/topic-fields/{topic_field_id}/roadmap`
 
-Gibt die Roadmap für ein Themenfeld zurück.
+Gibt die Roadmap für ein Themenfeld zurück. **Die Roadmap ist hierarchisch strukturiert (Tree)**.
 
 **Path Parameters:**
 - `topic_field_id` (integer): ID des Themenfelds
 
 **Query Parameters:**
 - `include_items` (optional, default: true): Ob Roadmap-Items eingeschlossen werden sollen
+- `format` (optional, default: "tree"): Format der Response - `"tree"` (hierarchisch) oder `"flat"` (flache Liste)
 
-**Response 200 OK:**
+**Response 200 OK (Tree Format):**
+```json
+{
+  "id": 1,
+  "topic_field_id": 1,
+  "name": "Full Stack Development Roadmap",
+  "description": "Schritt-für-Schritt Anleitung zum Full Stack Developer",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-15T00:00:00Z",
+  "tree": {
+    "id": 1,
+    "title": "Semester 3",
+    "item_type": "MODULE",
+    "level": 0,
+    "is_leaf": false,
+    "is_career_goal": false,
+    "semester": 3,
+    "is_semester_break": false,
+    "order": 1,
+    "children": [
+      {
+        "id": 2,
+        "title": "Web Development Grundlagen",
+        "item_type": "MODULE",
+        "description": "Lerne HTML, CSS und JavaScript",
+        "level": 1,
+        "is_leaf": false,
+        "is_career_goal": false,
+        "semester": 3,
+        "is_semester_break": false,
+        "order": 1,
+        "module_id": 5,
+        "is_important": true,
+        "children": [
+          {
+            "id": 10,
+            "title": "Full Stack Developer",
+            "item_type": "CAREER",
+            "description": "Karriereziel erreicht",
+            "level": 2,
+            "is_leaf": true,
+            "is_career_goal": true,
+            "order": 1,
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  "career_goals": [
+    {
+      "id": 10,
+      "title": "Full Stack Developer",
+      "item_type": "CAREER",
+      "is_career_goal": true
+    }
+  ]
+}
+```
+
+**Response 200 OK (Flat Format - für Rückwärtskompatibilität):**
 ```json
 {
   "id": 1,
@@ -587,32 +648,63 @@ Gibt die Roadmap für ein Themenfeld zurück.
     {
       "id": 1,
       "roadmap_id": 1,
+      "parent_id": null,
+      "item_type": "MODULE",
+      "title": "Semester 3",
+      "description": null,
+      "semester": 3,
+      "is_semester_break": false,
+      "order": 1,
+      "level": 0,
+      "is_leaf": false,
+      "is_career_goal": false,
+      "module_id": null,
+      "is_important": false,
+      "created_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 2,
+      "roadmap_id": 1,
+      "parent_id": 1,
       "item_type": "MODULE",
       "title": "Web Development Grundlagen",
       "description": "Lerne HTML, CSS und JavaScript",
       "semester": 3,
       "is_semester_break": false,
       "order": 1,
+      "level": 1,
+      "is_leaf": false,
+      "is_career_goal": false,
       "module_id": 5,
       "is_important": true,
       "created_at": "2024-01-01T00:00:00Z"
     },
     {
-      "id": 2,
+      "id": 10,
       "roadmap_id": 1,
-      "item_type": "PROJECT",
-      "title": "Eigene Web-App erstellen",
-      "description": "Baue eine vollständige Web-Anwendung",
+      "parent_id": 2,
+      "item_type": "CAREER",
+      "title": "Full Stack Developer",
+      "description": "Karriereziel erreicht",
       "semester": null,
-      "is_semester_break": true,
-      "order": 2,
+      "is_semester_break": false,
+      "order": 1,
+      "level": 2,
+      "is_leaf": true,
+      "is_career_goal": true,
       "module_id": null,
-      "is_important": false,
+      "is_important": true,
       "created_at": "2024-01-01T00:00:00Z"
     }
   ]
 }
 ```
+
+**Hinweis:** 
+- Roadmap ist **hierarchisch strukturiert** - Items haben `parent_id`, `level`, `is_leaf`
+- **Leaf Nodes** (`is_leaf = true`) sind **Berufe** (`is_career_goal = true`)
+- Tree-Format gibt verschachtelte Struktur zurück
+- Flat-Format gibt alle Items mit `parent_id` zurück (für Frontend Tree-Aufbau)
 
 ---
 
