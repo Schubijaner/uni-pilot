@@ -56,35 +56,29 @@ export async function generateRoadmap(
   // Group items by semester and is_semester_break
   const semesterPlans: Record<number, { regular: any[]; semesterBreak: any[] }> = {};
 
-  const processTree = (item: RoadmapItem, parentSemester?: number) => {
-    const semester = item.semester || parentSemester || 1;
+  // Process flat items array instead of tree
+  roadmapData.items.forEach(item => {
+    const semester = item.semester || 1;
     
-    if (item.item_type === 'MODULE' || item.item_type === 'COURSE' || item.item_type === 'PROJECT' || item.item_type === 'SKILL' || item.item_type === 'BOOK' || item.item_type === 'CERTIFICATE' || item.item_type === 'INTERNSHIP' || item.item_type === 'BOOTCAMP' || item.item_type === 'CAREER') {
-      if (!semesterPlans[semester]) {
-        semesterPlans[semester] = { regular: [], semesterBreak: [] };
-      }
-      
-      const itemData = {
-        id: item.id.toString(),
-        title: item.title,
-        type: item.item_type.toLowerCase(),
-        completed: false,
-        description: item.description,
-        is_semester_break: item.is_semester_break,
-      };
-
-      if (item.is_semester_break) {
-        semesterPlans[semester].semesterBreak.push(itemData);
-      } else {
-        semesterPlans[semester].regular.push(itemData);
-      }
+    if (!semesterPlans[semester]) {
+      semesterPlans[semester] = { regular: [], semesterBreak: [] };
     }
+    
+    const itemData = {
+      id: item.id.toString(),
+      title: item.title,
+      type: item.item_type.toLowerCase(),
+      completed: false,
+      description: item.description,
+      is_semester_break: item.is_semester_break,
+    };
 
-    // Process children
-    item.children.forEach(child => processTree(child, semester));
-  };
-
-  processTree(roadmapData.tree);
+    if (item.is_semester_break) {
+      semesterPlans[semester].semesterBreak.push(itemData);
+    } else {
+      semesterPlans[semester].regular.push(itemData);
+    }
+  });
 
   // Convert to SemesterPlan format - separate regular and semester break
   const roadmap: { semester: number; title: string; todos: any[] }[] = [];
