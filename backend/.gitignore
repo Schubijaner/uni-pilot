@@ -128,11 +128,9 @@ dmypy.json
 .pyre/
 
 # SQLite databases
-*.db
 *.db-journal
 *.db-shm
 *.db-wal
-uni_pilot.db
 *.sqlite
 *.sqlite3
 
