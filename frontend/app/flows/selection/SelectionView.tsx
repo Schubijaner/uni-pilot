@@ -14,6 +14,7 @@ import { getUserQuestions } from '~/api/getUserQuestions';
 import type { UserQuestion } from '~/types';
 import { getTree } from '~/api/getTree';
 import ChatContainer from '~/components/ui/ChatContainer';
+import LoadingModal from '~/components/ui/LoadingModal';
 
 interface TreeNode {
   id: number;
@@ -253,6 +254,7 @@ export const SelectionView: React.FC = () => {
   const [isLoadingTree, setIsLoadingTree] = useState(true);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
   const [treeError, setTreeError] = useState<string | null>(null);
+  const [isCreatingRoadmap, setIsCreatingRoadmap] = useState(false);
 
   const [treeData, setTreeData] = useState<TreeData | null>(null);
 
@@ -394,18 +396,22 @@ export const SelectionView: React.FC = () => {
 
     const targetJobs = collectLeafNodes(filteredTreeData.nodes)[0];
     if (targetJobs && token) {
+      setIsCreatingRoadmap(true);
       try {
         await generateRoadmap(targetJobs.topic_field_id!, token);
         navigate('/roadmap');
       } catch (error) {
         console.error('Failed to generate roadmap:', error);
         // Show error to user
+      } finally {
+        setIsCreatingRoadmap(false);
       }
     }
   }, [filteredTreeData, canCreateRoadmap, generateRoadmap, navigate]);
 
   return (
     <Layout>
+      <LoadingModal isOpen={isCreatingRoadmap} />
       {/* Mobile Layout - Tree as background, Questions as overlay */}
       <div className="lg:hidden fixed inset-0 flex flex-col">
         {/* Tree - Full background */}

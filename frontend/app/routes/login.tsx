@@ -63,7 +63,7 @@ export default function LoginPage() {
       const token = response.token;
       login(token);
       setAuthenticated(true);
-      navigate('/selection');
+      navigate('/roadmap');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Anmeldung fehlgeschlagen';
       setErrors({ general: message });

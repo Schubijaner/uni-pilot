@@ -16,6 +16,7 @@ interface AppState {
   selectedJobs: string[];
   userSkills: Skill[];
   currentCareerPath: CareerPath | null;
+  currentTopicFieldId: number | null;
   isAuthenticated: boolean;
 }
 
@@ -23,6 +24,7 @@ const initialState: AppState = {
   selectedJobs: [],
   userSkills: [],
   currentCareerPath: null,
+  currentTopicFieldId: null,
   isAuthenticated: false,
 };
 
@@ -36,6 +38,8 @@ type AppAction =
   | { type: 'SET_SELECTED_JOBS'; payload: string[] }
   | { type: 'SET_USER_SKILLS'; payload: Skill[] }
   | { type: 'GENERATE_ROADMAP'; payload: CareerPath }
+  | { type: 'SET_TOPIC_FIELD_ID'; payload: number }
+  | { type: 'CLEAR_ROADMAP' }
   | { type: 'SET_AUTHENTICATED'; payload: boolean }
   | { type: 'TOGGLE_TODO'; payload: { semester: number; todoId: string } };
 
@@ -62,6 +66,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'GENERATE_ROADMAP': {
       return { ...state, currentCareerPath: action.payload };
     }
+    case 'SET_TOPIC_FIELD_ID':
+      return { ...state, currentTopicFieldId: action.payload };
+    case 'CLEAR_ROADMAP':
+      return { ...state, currentCareerPath: null, currentTopicFieldId: null };
     case 'SET_AUTHENTICATED':
       return { ...state, isAuthenticated: action.payload };
     case 'TOGGLE_TODO': {
@@ -98,7 +106,8 @@ interface AppContextType {
   toggleJob: (jobId: string) => void;
   isJobSelected: (jobId: string) => boolean;
   setUserSkills: (skills: Skill[]) => void;
-  generateRoadmap: (jobId: number, token: string) => Promise<void>;
+  generateRoadmap: (topicFieldId: number, token: string) => Promise<void>;
+  setTopicFieldId: (id: number) => void;
   toggleTodo: (semester: number, todoId: string) => void;
   isAuthenticated: boolean;
   setAuthenticated: (value: boolean) => void;
@@ -124,25 +133,28 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing token on mount
+  // Check for existing token and topic field ID on mount
   useEffect(() => {
     const storedToken = tokenStorage.getToken();
     if (storedToken) {
       setToken(storedToken);
       setIsAuthenticated(true);
     }
+
+    const storedTopicFieldId = tokenStorage.getTopicFieldId();
+    if (storedTopicFieldId) {
+      dispatch({ type: 'SET_TOPIC_FIELD_ID', payload: storedTopicFieldId });
+    }
+
     setIsLoading(false);
   }, []);
 
-  // Check for existing token on mount
+  // Save topic field ID to localStorage whenever it changes
   useEffect(() => {
-    const storedToken = tokenStorage.getToken();
-    if (storedToken) {
-      setToken(storedToken);
-      setIsAuthenticated(true);
+    if (state.currentTopicFieldId) {
+      tokenStorage.setTopicFieldId(state.currentTopicFieldId);
     }
-    setIsLoading(false);
-  }, []);
+  }, [state.currentTopicFieldId]);
 
   const login = (newToken: string) => {
     tokenStorage.setToken(newToken);
@@ -152,8 +164,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const logout = () => {
     tokenStorage.removeToken();
+    tokenStorage.removeTopicFieldId();
     setToken(null);
     setIsAuthenticated(false);
+    dispatch({ type: 'CLEAR_ROADMAP' });
   };
 
   const setAuthenticated = (value: boolean) => {
@@ -189,9 +203,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     dispatch({ type: 'SET_USER_SKILLS', payload: skills });
   }, []);
 
-  const generateRoadmapAction = useCallback(async (jobId: number, token: string) => {
+  const setTopicFieldId = useCallback((id: number) => {
+    dispatch({ type: 'SET_TOPIC_FIELD_ID', payload: id });
+    tokenStorage.setTopicFieldId(id);
+  }, []);
+
+  const generateRoadmapAction = useCallback(async (topicFieldId: number, token: string) => {
     try {
-      const roadmap = await generateRoadmapAPI(jobId, token);
+      // Store the topic field ID
+      dispatch({ type: 'SET_TOPIC_FIELD_ID', payload: topicFieldId });
+      tokenStorage.setTopicFieldId(topicFieldId);
+      
+      const roadmap = await generateRoadmapAPI(topicFieldId, token);
       dispatch({ type: 'GENERATE_ROADMAP', payload: roadmap });
     } catch (error) {
       console.error('Failed to generate roadmap:', error);
@@ -211,6 +234,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     isJobSelected,
     setUserSkills,
     generateRoadmap: generateRoadmapAction,
+    setTopicFieldId,
     toggleTodo,
     isAuthenticated,
     setAuthenticated,

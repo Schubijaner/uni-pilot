@@ -3,7 +3,7 @@
  * Kombiniert Radar Chart und Semester-ToDos
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Layout } from '~/components/layout';
 import { Card, CardHeader, CardTitle, CardDescription, Button, RadarChart, Accordion } from '~/components/ui';
@@ -13,11 +13,83 @@ import { SkillGapCard } from './components/SkillGapCard';
 
 export const RoadmapView: React.FC = () => {
   const navigate = useNavigate();
-  const { state, toggleTodo } = useApp();
-  const { currentCareerPath, userSkills } = state;
+  const { state, toggleTodo, generateRoadmap, token } = useApp();
+  const { currentCareerPath, currentTopicFieldId, userSkills } = state;
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Redirect if no career path
-  if (!currentCareerPath) {
+  // Fetch roadmap if we have a topic field ID but no roadmap data
+  useEffect(() => {
+    const fetchRoadmap = async () => {
+      if (!currentCareerPath && currentTopicFieldId && token) {
+        setIsLoading(true);
+        setError(null);
+        try {
+          await generateRoadmap(currentTopicFieldId, token);
+        } catch (err) {
+          console.error('Failed to fetch roadmap:', err);
+          setError('Fehler beim Laden der Roadmap');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchRoadmap();
+  }, [currentCareerPath, currentTopicFieldId, token, generateRoadmap]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Layout variant="centered">
+        <Card variant="glass" className="text-center max-w-md">
+          <div className="py-8">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+              <svg className="w-10 h-10 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              Roadmap wird geladen...
+            </h2>
+            <p className="text-gray-500 dark:text-gray-400">
+              Bitte warte einen Moment.
+            </p>
+          </div>
+        </Card>
+      </Layout>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Layout variant="centered">
+        <Card variant="glass" className="text-center max-w-md">
+          <div className="py-8">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+              <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              Fehler beim Laden
+            </h2>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
+              {error}
+            </p>
+            <Button onClick={() => navigate('/selection')}>
+              Zur Auswahl
+            </Button>
+          </div>
+        </Card>
+      </Layout>
+    );
+  }
+
+  // Redirect if no career path and no topic field ID
+  if (!currentCareerPath && !currentTopicFieldId) {
     return (
       <Layout variant="centered">
         <Card variant="glass" className="text-center max-w-md">
@@ -36,6 +108,27 @@ export const RoadmapView: React.FC = () => {
             <Button onClick={() => navigate('/selection')}>
               Zur Auswahl
             </Button>
+          </div>
+        </Card>
+      </Layout>
+    );
+  }
+
+  // Still loading (waiting for roadmap to be fetched)
+  if (!currentCareerPath) {
+    return (
+      <Layout variant="centered">
+        <Card variant="glass" className="text-center max-w-md">
+          <div className="py-8">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+              <svg className="w-10 h-10 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              Roadmap wird geladen...
+            </h2>
           </div>
         </Card>
       </Layout>
