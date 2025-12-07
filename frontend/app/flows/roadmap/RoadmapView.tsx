@@ -8,13 +8,48 @@ import { useNavigate } from 'react-router';
 import { Layout } from '~/components/layout';
 import { Card, CardHeader, CardTitle, CardDescription, Button, RadarChart, Accordion } from '~/components/ui';
 import { useApp } from '~/contexts';
+import type { Skill, SkillImpact } from '~/types';
 import { SemesterAccordion } from './components/SemesterAccordion';
 import { SkillGapCard } from './components/SkillGapCard';
 
 export const RoadmapView: React.FC = () => {
   const navigate = useNavigate();
   const { state, toggleTodo, generateRoadmap, token } = useApp();
-  const { currentCareerPath, currentTopicFieldId, userSkills } = state;
+  const { currentCareerPath, currentTopicFieldId } = state;
+  
+  // Use requiredSkills from roadmap (Soll-Skills / target_skills)
+  const requiredSkills = currentCareerPath?.requiredSkills || [];
+  
+  // Initialize currentSkills: ensure all requiredSkills have a corresponding entry
+  // This ensures the radar chart shows all skills even if currentSkills is incomplete
+  const initializeCurrentSkills = React.useCallback((baseSkills: Skill[]): Skill[] => {
+    const skillMap = new Map(baseSkills.map(s => [s.name, s.value]));
+    
+    // Ensure all requiredSkills have an entry in currentSkills
+    return requiredSkills.map(reqSkill => ({
+      name: reqSkill.name,
+      value: skillMap.get(reqSkill.name) || 0,
+    }));
+  }, [requiredSkills]);
+  
+  // Use currentSkills from roadmap (Ist-Skills) or fallback to userSkills from state
+  // This will be updated when items are completed
+  const [currentSkills, setCurrentSkills] = React.useState<Skill[]>(() => {
+    const base = currentCareerPath?.currentSkills || state.userSkills || [];
+    return initializeCurrentSkills(base);
+  });
+  
+  // Update currentSkills when roadmap changes
+  React.useEffect(() => {
+    if (requiredSkills.length > 0) {
+      if (currentCareerPath?.currentSkills) {
+        setCurrentSkills(initializeCurrentSkills(currentCareerPath.currentSkills));
+      } else {
+        // If we have requiredSkills but no currentSkills, initialize with zeros
+        setCurrentSkills(initializeCurrentSkills([]));
+      }
+    }
+  }, [currentCareerPath?.currentSkills, requiredSkills, initializeCurrentSkills]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -159,7 +194,7 @@ export const RoadmapView: React.FC = () => {
         <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
           Dein Weg zum{' '}
           <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-            {currentCareerPath.jobName}
+            {currentCareerPath?.jobName || 'Karriereziel'}
           </span>
         </h1>
         <p className="text-gray-600 dark:text-gray-400 text-lg">
@@ -212,13 +247,13 @@ export const RoadmapView: React.FC = () => {
             <CardHeader>
               <CardTitle>Skill-Vergleich</CardTitle>
               <CardDescription>
-                Deine aktuellen Skills vs. Anforderungen für {currentCareerPath.jobName}
+                Ist-Zustand (aktuell) vs. Soll-Zustand (Ziel) für {currentCareerPath.jobName}
               </CardDescription>
             </CardHeader>
-            <div className="flex justify-center py-4">
+            <div className="flex justify-center py-6 px-4 overflow-visible">
               <RadarChart
-                userSkills={userSkills}
-                requiredSkills={currentCareerPath.requiredSkills}
+                userSkills={currentSkills}
+                requiredSkills={requiredSkills}
                 size={320}
               />
             </div>
@@ -226,8 +261,8 @@ export const RoadmapView: React.FC = () => {
 
           {/* Skill Gap Card */}
           <SkillGapCard
-            userSkills={userSkills}
-            requiredSkills={currentCareerPath.requiredSkills}
+            userSkills={currentSkills}
+            requiredSkills={requiredSkills}
           />
         </div>
 
@@ -253,7 +288,57 @@ export const RoadmapView: React.FC = () => {
                 <SemesterAccordion
                   key={semesterPlan.semester}
                   semesterPlan={semesterPlan}
-                  onTodoToggle={(todoId) => toggleTodo(semesterPlan.semester, todoId)}
+                  onTodoToggle={(todoId) => {
+                    // Find the todo to get its skill_impact
+                    const todo = semesterPlan.todos.find(t => t.id === todoId);
+                    if (!todo) return;
+                    
+                    const wasCompleted = todo.completed;
+                    const willBeCompleted = !wasCompleted;
+                    
+                    // Update currentSkills based on skill_impact
+                    // We update BEFORE toggling to ensure we use the correct current state
+                    if (todo.skill_impact && todo.skill_impact.length > 0) {
+                      setCurrentSkills(prevSkills => {
+                        // Create a map for easier lookup
+                        const skillMap = new Map(prevSkills.map(s => [s.name, s.value]));
+                        
+                        // Update skills based on impact
+                        todo.skill_impact!.forEach(impact => {
+                          const currentValue = skillMap.get(impact.skill) || 0;
+                          
+                          if (willBeCompleted) {
+                            // Item will be completed - add impact
+                            skillMap.set(impact.skill, Math.min(100, currentValue + impact.impact));
+                          } else {
+                            // Item will be uncompleted - subtract impact
+                            skillMap.set(impact.skill, Math.max(0, currentValue - impact.impact));
+                          }
+                        });
+                        
+                        // Convert back to array, ensuring all requiredSkills are included
+                        const updated = requiredSkills.map(reqSkill => ({
+                          name: reqSkill.name,
+                          value: skillMap.get(reqSkill.name) || 0,
+                        }));
+                        
+                        // Also include any skills from impact that aren't in requiredSkills
+                        todo.skill_impact!.forEach(impact => {
+                          if (!updated.find(s => s.name === impact.skill)) {
+                            updated.push({
+                              name: impact.skill,
+                              value: skillMap.get(impact.skill) || 0,
+                            });
+                          }
+                        });
+                        
+                        return updated;
+                      });
+                    }
+                    
+                    // Toggle the todo
+                    toggleTodo(semesterPlan.semester, todoId);
+                  }}
                   defaultOpen={index === 0}
                 />
               ))}

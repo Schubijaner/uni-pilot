@@ -25,9 +25,10 @@ export const RadarChart: React.FC<RadarChartProps> = ({
   );
 
   const numPoints = allSkillNames.length;
-  const centerX = size / 2;
-  const centerY = size / 2;
-  const radius = (size / 2) * 0.75;
+  const padding = size * 0.2; // 20% padding for labels
+  const centerX = (size + padding * 2) / 2;
+  const centerY = (size + padding * 2) / 2;
+  const radius = (size / 2) * 0.65; // Reduced to make room for labels
 
   // Berechne Punktkoordinaten für einen Wert (0-100)
   const getPoint = (index: number, value: number): { x: number; y: number } => {
@@ -53,13 +54,19 @@ export const RadarChart: React.FC<RadarChartProps> = ({
   // Erzeuge Gitterlinien
   const gridLevels = [20, 40, 60, 80, 100];
 
+  // Calculate padding for labels (extend viewBox)
+  const viewBoxSize = size + padding * 2;
+  const viewBoxOffset = padding;
+  
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${className} overflow-visible`}>
       <svg
         width={size}
         height={size}
-        viewBox={`0 0 ${size} ${size}`}
+        viewBox={`${-viewBoxOffset} ${-viewBoxOffset} ${viewBoxSize} ${viewBoxSize}`}
         className="mx-auto"
+        style={{ overflow: 'visible' }}
+        preserveAspectRatio="xMidYMid meet"
       >
         {/* Grid circles */}
         {gridLevels.map((level) => (
@@ -115,15 +122,31 @@ export const RadarChart: React.FC<RadarChartProps> = ({
 
         {/* Skill Labels */}
         {allSkillNames.map((name, i) => {
-          const point = getPoint(i, 115);
+          const point = getPoint(i, 100);
+          const angle = (Math.PI * 2 * i) / numPoints - Math.PI / 2;
+          // Position labels further out
+          const labelRadius = radius * 1.25;
+          const labelX = centerX + labelRadius * Math.cos(angle);
+          const labelY = centerY + labelRadius * Math.sin(angle);
+          
+          // Determine text anchor based on angle
+          let textAnchor: 'start' | 'middle' | 'end' = 'middle';
+          if (Math.abs(Math.cos(angle)) > 0.5) {
+            textAnchor = Math.cos(angle) > 0 ? 'start' : 'end';
+          }
+          
           return (
             <text
               key={name}
-              x={point.x}
-              y={point.y}
-              textAnchor="middle"
+              x={labelX}
+              y={labelY}
+              textAnchor={textAnchor}
               dominantBaseline="middle"
-              className="text-xs font-medium fill-gray-600 dark:fill-gray-400"
+              className="text-sm font-medium fill-gray-700 dark:fill-gray-300 pointer-events-none select-none"
+              style={{
+                fontSize: '0.875rem',
+                fontWeight: 500,
+              }}
             >
               {name}
             </text>
@@ -135,11 +158,11 @@ export const RadarChart: React.FC<RadarChartProps> = ({
       <div className="flex justify-center gap-6 mt-4">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-indigo-500/50 border-2 border-indigo-500" />
-          <span className="text-sm text-gray-600 dark:text-gray-400">Deine Skills</span>
+          <span className="text-sm text-gray-600 dark:text-gray-400">Ist-Zustand</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-red-500/30 border-2 border-red-500" />
-          <span className="text-sm text-gray-600 dark:text-gray-400">Benötigte Skills</span>
+          <span className="text-sm text-gray-600 dark:text-gray-400">Soll-Zustand</span>
         </div>
       </div>
     </div>

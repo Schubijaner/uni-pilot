@@ -96,6 +96,24 @@ ROADMAP_JSON_SCHEMA = {
                         },
                         "nullable": True,
                     },
+                    "skill_impact": {
+                        "type": "array",
+                        "description": "Skills that will be improved when this item is completed (for ALL items, not just leaf nodes)",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "skill": {"type": "string", "description": "Name of the skill"},
+                                "impact": {
+                                    "type": "integer",
+                                    "description": "Impact score from 0-10 (how much this item improves the skill)",
+                                    "minimum": 0,
+                                    "maximum": 10,
+                                },
+                            },
+                            "required": ["skill", "impact"],
+                        },
+                        "nullable": True,
+                    },
                 },
                 "required": [
                     "item_type",
@@ -111,6 +129,24 @@ ROADMAP_JSON_SCHEMA = {
                 ],
             },
         },
+        "current_skills": {
+            "type": "array",
+            "description": "Current skill levels of the user (Ist-Skills) - MUST have the same skill names as top_skills from leaf nodes",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "skill": {"type": "string", "description": "Name of the skill (must match skill names from top_skills)"},
+                    "score": {
+                        "type": "integer",
+                        "description": "Current skill level from 0-100 (conservative assessment)",
+                        "minimum": 0,
+                        "maximum": 100,
+                    },
+                },
+                "required": ["skill", "score"],
+            },
+            "nullable": True,
+        },
     },
     "required": ["name", "description", "items"],
 }
@@ -121,6 +157,7 @@ def generate_roadmap_prompt(
     user_profile: UserProfile,
     topic_field: TopicField,
     available_modules: List[Module],
+    completed_modules: List[Module] = None,
 ) -> str:
     """
     Generate prompt for roadmap generation.
@@ -130,6 +167,7 @@ def generate_roadmap_prompt(
         user_profile: UserProfile database model
         topic_field: TopicField database model
         available_modules: List of available modules for the study program
+        completed_modules: List of completed modules for the user (optional)
 
     Returns:
         Prompt string for LLM
@@ -149,6 +187,21 @@ def generate_roadmap_prompt(
 
     modules_json = json.dumps(modules_data, indent=2, ensure_ascii=False)
 
+    # Format completed modules for context
+    completed_modules_data = []
+    if completed_modules:
+        for module in completed_modules:
+            completed_modules_data.append(
+                {
+                    "id": module.id,
+                    "name": module.name,
+                    "description": module.description or "",
+                    "type": module.module_type.value,
+                    "semester": module.semester,
+                }
+            )
+    completed_modules_json = json.dumps(completed_modules_data, indent=2, ensure_ascii=False)
+
     # Current semester calculation
     current_semester = user_profile.current_semester or 1
     target_semesters = current_semester + 4  # Plan for next 4 semesters
@@ -163,6 +216,9 @@ Kontext:
 - Bereits vorhandene Skills: {user_profile.skills or "Keine angegeben"}
 - Themenfeld: {topic_field.name}
 - Beschreibung: {topic_field.description or "Keine Beschreibung verfügbar"}
+
+Abgeschlossene Module (bereits bestanden):
+{completed_modules_json if completed_modules_data else "Keine abgeschlossenen Module"}
 
 Verfügbare Module aus dem Modulhandbuch (noch NICHT abgeschlossen):
 {modules_json}
@@ -211,6 +267,24 @@ Struktur die Roadmap folgendermaßen:
      * score: 0-100 (Wichtigkeit für diesen Beruf)
      * Beispiel: {{"top_skills": [{{"skill": "Python", "score": 95}}, {{"skill": "Machine Learning", "score": 90}}, {{"skill": "Data Analysis", "score": 85}}, {{"skill": "Statistics", "score": 80}}, {{"skill": "SQL", "score": 75}}]}}
 
+8. WICHTIG - skill_impact für ALLE Items:
+   - JEDES Roadmap-Item (nicht nur Leaf Nodes) MUSS ein "skill_impact" Array enthalten
+   - Format: [{{"skill": "Skill-Name", "impact": 15}}, ...]
+   - impact: 0-100 (wie stark verbessert dieses Item den Skill beim Abschluss)
+   - Beispiel: {{"skill_impact": [{{"skill": "Python", "impact": 20}}, {{"skill": "Data Analysis", "impact": 15}}]}}
+   - Die Skills in skill_impact sollten zu den Skills aus top_skills (Leaf Nodes) passen
+
+9. WICHTIG - current_skills (Ist-Zustand) berechnen:
+   - Du MUSST ein "current_skills" Array im Root-Level der Roadmap berechnen
+   - Format: [{{"skill": "Skill-Name", "score": 45}}, ...]
+   - score: 0-100 (aktueller Skill-Level, KONSERVATIV bewerten)
+   - WICHTIG: Die Skill-Namen MÜSSEN GENAU mit den Skill-Namen aus "top_skills" der Leaf Nodes übereinstimmen (1:1 Mapping)
+   - Bewertungsgrundlage:
+     * Abgeschlossene Module (siehe oben)
+     * Initiale Skills aus UserProfile: {user_profile.skills or "Keine angegeben"}
+   - Bewerte KONSERVATIV - nicht überoptimistisch
+   - Beispiel: Wenn top_skills = [{{"skill": "Python", "score": 95}}, ...], dann current_skills = [{{"skill": "Python", "score": 45}}, ...]
+
 Struktur-Beispiel:
 - Semester {current_semester} (level=0, parent_id=null)
   - Modul: Web Development (level=1, parent_id=<semester_id>)
@@ -227,6 +301,8 @@ WICHTIG:
 - order: Sortierung bei Geschwister-Nodes (1, 2, 3, ...)
 - semester: NIEMALS null - jeder Knoten braucht einen gültigen Semesterwert
 - top_skills: Nur für Leaf Nodes (is_career_goal=true) - Array mit 5 Skills und Scores (0-100)
+- skill_impact: Für ALLE Items (nicht nur Leaf Nodes) - Array mit Skills und Impact-Scores (0-100)
+- current_skills: Im Root-Level der Roadmap - Array mit Skills und Scores (0-100), MUSS dieselben Skill-Namen wie top_skills haben
 
 Antworte NUR mit dem JSON, keine zusätzlichen Erklärungen."""
 
@@ -238,6 +314,7 @@ def generate_roadmap_prompt_for_job(
     user_profile: UserProfile,
     job: CareerTreeNode,
     available_modules: List[Module],
+    completed_modules: List[Module] = None,
 ) -> str:
     """
     Generate prompt for roadmap generation based on a specific job.
@@ -247,6 +324,7 @@ def generate_roadmap_prompt_for_job(
         user_profile: UserProfile database model
         job: CareerTreeNode database model (must be a leaf node)
         available_modules: List of available modules for the study program
+        completed_modules: List of completed modules for the user (optional)
 
     Returns:
         Prompt string for LLM
@@ -266,6 +344,21 @@ def generate_roadmap_prompt_for_job(
 
     modules_json = json.dumps(modules_data, indent=2, ensure_ascii=False)
 
+    # Format completed modules for context
+    completed_modules_data = []
+    if completed_modules:
+        for module in completed_modules:
+            completed_modules_data.append(
+                {
+                    "id": module.id,
+                    "name": module.name,
+                    "description": module.description or "",
+                    "type": module.module_type.value,
+                    "semester": module.semester,
+                }
+            )
+    completed_modules_json = json.dumps(completed_modules_data, indent=2, ensure_ascii=False)
+
     # Current semester calculation
     current_semester = user_profile.current_semester or 1
     target_semesters = current_semester + 4  # Plan for next 4 semesters
@@ -283,6 +376,9 @@ Kontext:
 - Bereits vorhandene Skills: {user_profile.skills or "Keine angegeben"}
 - Zielberuf: {job_name}
 - Berufsbeschreibung: {job_description}
+
+Abgeschlossene Module (bereits bestanden):
+{completed_modules_json if completed_modules_data else "Keine abgeschlossenen Module"}
 
 Verfügbare Module aus dem Modulhandbuch (noch NICHT abgeschlossen):
 {modules_json}
@@ -330,6 +426,24 @@ Struktur die Roadmap folgendermaßen:
      * score: 0-100 (Wichtigkeit für diesen Beruf)
      * Beispiel: {{"top_skills": [{{"skill": "Python", "score": 95}}, {{"skill": "Machine Learning", "score": 90}}, {{"skill": "Data Analysis", "score": 85}}, {{"skill": "Statistics", "score": 80}}, {{"skill": "SQL", "score": 75}}]}}
 
+8. WICHTIG - skill_impact für ALLE Items:
+   - JEDES Roadmap-Item (nicht nur Leaf Nodes) MUSS ein "skill_impact" Array enthalten
+   - Format: [{{"skill": "Skill-Name", "impact": 15}}, ...]
+   - impact: 0-100 (wie stark verbessert dieses Item den Skill beim Abschluss)
+   - Beispiel: {{"skill_impact": [{{"skill": "Python", "impact": 20}}, {{"skill": "Data Analysis", "impact": 15}}]}}
+   - Die Skills in skill_impact sollten zu den Skills aus top_skills (Leaf Nodes) passen
+
+9. WICHTIG - current_skills (Ist-Zustand) berechnen:
+   - Du MUSST ein "current_skills" Array im Root-Level der Roadmap berechnen
+   - Format: [{{"skill": "Skill-Name", "score": 45}}, ...]
+   - score: 0-100 (aktueller Skill-Level, KONSERVATIV bewerten)
+   - WICHTIG: Die Skill-Namen MÜSSEN GENAU mit den Skill-Namen aus "top_skills" des Leaf Nodes übereinstimmen (1:1 Mapping)
+   - Bewertungsgrundlage:
+     * Abgeschlossene Module (siehe oben)
+     * Initiale Skills aus UserProfile: {user_profile.skills or "Keine angegeben"}
+   - Bewerte KONSERVATIV - nicht überoptimistisch
+   - Beispiel: Wenn top_skills = [{{"skill": "Python", "score": 95}}, ...], dann current_skills = [{{"skill": "Python", "score": 45}}, ...]
+
 Struktur-Beispiel:
 - Semester {current_semester} (level=0, parent_id=null)
   - Modul: Web Development (level=1, parent_id=<semester_id>)
@@ -346,6 +460,8 @@ WICHTIG:
 - order: Sortierung bei Geschwister-Nodes (1, 2, 3, ...)
 - semester: NIEMALS null - jeder Knoten braucht einen gültigen Semesterwert
 - top_skills: Für den Leaf Node (is_career_goal=true) - Array mit 5 Skills und Scores (0-100)
+- skill_impact: Für ALLE Items (nicht nur Leaf Nodes) - Array mit Skills und Impact-Scores (0-100)
+- current_skills: Im Root-Level der Roadmap - Array mit Skills und Scores (0-100), MUSS dieselben Skill-Namen wie top_skills haben
 
 Antworte NUR mit dem JSON, keine zusätzlichen Erklärungen."""
 

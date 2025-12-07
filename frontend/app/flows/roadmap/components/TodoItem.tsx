@@ -4,6 +4,7 @@
 
 import React from 'react';
 import type { RoadmapTodo, TodoType } from '~/types';
+import { cleanDescription } from '~/utils/parseSkillData';
 
 interface TodoItemProps {
   todo: RoadmapTodo;
@@ -134,8 +135,31 @@ export const TodoItem: React.FC<TodoItemProps> = ({ todo, onToggle }) => {
               }
             `}
           >
-            {todo.description}
+            {cleanDescription(todo.description)}
           </p>
+        )}
+        {todo.skill_impact && todo.skill_impact.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-1 mb-1">
+              <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                Skill-Impact:
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {todo.skill_impact.map((impact, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/20 text-xs text-indigo-700 dark:text-indigo-300"
+                >
+                  <span className="font-medium">{impact.skill}</span>
+                  <span className="text-indigo-500">+{impact.impact}%</span>
+                </span>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -106,12 +106,18 @@ export interface FilterOption {
 
 export type TodoType = 'module' | 'course' | 'project' | 'skill' | 'book' | 'certificate' | 'internship' | 'bootcamp' | 'career';
 
+export interface SkillImpact {
+  skill: string;
+  impact: number; // 0-100
+}
+
 export interface RoadmapTodo {
   id: string;
   title: string;
   type: TodoType;
   completed: boolean;
   description?: string;
+  skill_impact?: SkillImpact[]; // Skills that will be improved when this item is completed
 }
 
 export interface SemesterPlan {
@@ -123,7 +129,8 @@ export interface SemesterPlan {
 export interface CareerPath {
   jobId: string;
   jobName: string;
-  requiredSkills: Skill[];
+  requiredSkills: Skill[]; // Soll-Skills (target_skills)
+  currentSkills: Skill[]; // Ist-Skills (current_skills)
   roadmap: SemesterPlan[];
 }
 
