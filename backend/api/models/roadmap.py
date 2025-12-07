@@ -1,11 +1,27 @@
 """Roadmap-related Pydantic schemas."""
 
+import json
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from database.models import RoadmapItemType
+
+
+class TopSkill(BaseModel):
+    """Schema for a top skill with score."""
+
+    skill: str
+    score: int  # 0-100
+
+    @field_validator("score")
+    @classmethod
+    def validate_score(cls, v: int) -> int:
+        """Validate score is between 0 and 100."""
+        if not 0 <= v <= 100:
+            raise ValueError("Score must be between 0 and 100")
+        return v
 
 
 class RoadmapItemBase(BaseModel):
@@ -14,7 +30,7 @@ class RoadmapItemBase(BaseModel):
     item_type: RoadmapItemType
     title: str
     description: Optional[str] = None
-    semester: Optional[int] = None
+    semester: int  # MUST NEVER be null
     is_semester_break: bool = False
     order: int
     level: int = 0
@@ -22,6 +38,7 @@ class RoadmapItemBase(BaseModel):
     is_career_goal: bool = False
     module_id: Optional[int] = None
     is_important: bool = False
+    top_skills: Optional[List[TopSkill]] = None  # Only for leaf nodes (is_career_goal=true)
 
 
 class RoadmapItemCreate(RoadmapItemBase):

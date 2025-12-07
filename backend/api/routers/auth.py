@@ -1,8 +1,9 @@
 """Authentication router."""
 
 import logging
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from api.core.exceptions import AuthenticationError, ValidationError
@@ -61,14 +62,18 @@ async def register_user(
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
-    request: UserLogin,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     """
     Login user and get JWT token.
+    
+    Supports both JSON and OAuth2 form-data formats:
+    - JSON: {"email": "...", "password": "..."}
+    - Form-Data: username=...&password=...&grant_type=password
 
     Args:
-        request: Login request with email and password
+        request: FastAPI request object
         db: Database session
 
     Returns:
@@ -77,10 +82,45 @@ async def login(
     Raises:
         HTTPException: If credentials are invalid
     """
+    content_type = request.headers.get("content-type", "")
+    
+    email: Optional[str] = None
+    password: Optional[str] = None
+    
+    # Check content type and parse accordingly
+    if "application/x-www-form-urlencoded" in content_type:
+        # OAuth2 form-data format
+        form_data = await request.form()
+        email = form_data.get("username")  # OAuth2 uses "username" for email
+        password = form_data.get("password")
+        
+        if not email or not password:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="username and password are required in form data",
+            )
+    else:
+        # Default to JSON format
+        try:
+            json_data = await request.json()
+            email = json_data.get("email")
+            password = json_data.get("password")
+            
+            if not email or not password:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="email and password are required in JSON body",
+                )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid request format: {str(e)}",
+            )
+    
     try:
         user, token = AuthService.login_user(
-            email=request.email,
-            password=request.password,
+            email=email,
+            password=password,
             db=db,
         )
         return TokenResponse(

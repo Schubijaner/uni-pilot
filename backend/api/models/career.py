@@ -27,7 +27,8 @@ class CareerTreeNodeResponse(BaseModel):
     description: Optional[str] = None
     is_leaf: bool
     level: int
-    topic_field: Optional[TopicFieldResponse] = None
+    topic_field_id: Optional[int] = None  # Direct access to topic_field_id
+    topic_field: Optional[TopicFieldResponse] = None  # Full topic field object
     questions: Optional[List[str]] = None  # Liste von Fragen, eine pro Kindknoten
     children: List["CareerTreeNodeResponse"] = []
 

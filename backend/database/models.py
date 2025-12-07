@@ -243,7 +243,7 @@ class RoadmapItem(Base):
     item_type = Column(Enum(RoadmapItemType), nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    semester = Column(Integer, nullable=True)
+    semester = Column(Integer, nullable=False)  # MUST NEVER be null
     is_semester_break = Column(Boolean, default=False, nullable=False)
     order = Column(Integer, default=0, nullable=False)
     level = Column(Integer, default=0, nullable=False)  # Tiefe im Tree (0 = Root)
@@ -251,6 +251,7 @@ class RoadmapItem(Base):
     is_career_goal = Column(Boolean, default=False, nullable=False)  # Ist dieser Item ein Beruf (Ziel)?
     module_id = Column(Integer, ForeignKey("modules.id", ondelete="SET NULL"), nullable=True)
     is_important = Column(Boolean, default=False, nullable=False)
+    top_skills = Column(Text, nullable=True)  # JSON-String: Array of {"skill": str, "score": int} for leaf nodes
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships

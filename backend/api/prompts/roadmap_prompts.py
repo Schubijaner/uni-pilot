@@ -42,8 +42,7 @@ ROADMAP_JSON_SCHEMA = {
                     },
                     "semester": {
                         "type": "integer",
-                        "description": "Semester number (null if in semester break)",
-                        "nullable": True,
+                        "description": "Semester number - MUST NEVER be null, even for non-module nodes. For items with is_semester_break=true, use the semester that precedes or follows the break period.",
                     },
                     "is_semester_break": {
                         "type": "boolean",
@@ -79,11 +78,30 @@ ROADMAP_JSON_SCHEMA = {
                         "type": "boolean",
                         "description": "Whether this item is particularly important",
                     },
+                    "top_skills": {
+                        "type": "array",
+                        "description": "Top 5 skills required for this career goal (only for leaf nodes with is_career_goal=true)",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "skill": {"type": "string", "description": "Name of the skill"},
+                                "score": {
+                                    "type": "integer",
+                                    "description": "Importance score from 0-100",
+                                    "minimum": 0,
+                                    "maximum": 100,
+                                },
+                            },
+                            "required": ["skill", "score"],
+                        },
+                        "nullable": True,
+                    },
                 },
                 "required": [
                     "item_type",
                     "title",
                     "description",
+                    "semester",
                     "is_semester_break",
                     "order",
                     "level",
@@ -171,15 +189,27 @@ Struktur die Roadmap folgendermaßen:
    - Bootcamps (item_type: "BOOTCAMP")
    - Zertifikate (item_type: "CERTIFICATE")
 
-5. WICHTIG - item_type und is_semester_break:
+5. WICHTIG - Semester darf NIEMALS null sein:
+   - JEDER Knoten (auch non-module nodes wie COURSE, PROJECT, SKILL, etc.) MUSS einen gültigen Semesterwert haben
+   - Für Knoten mit is_semester_break=true: Verwende das Semester, das der Semesterferien-Zeitraum zugeordnet ist
+     (z.B. wenn die Ferien zwischen Semester 2 und 3 liegen, verwende Semester 2 oder 3)
+   - Begründe in der description, warum dieses Semester für non-module nodes sinnvoll ist:
+     * Bei is_semester_break=true: Erkläre die zeitliche Entlastung, thematischen Übergang oder Vorbereitung auf spätere Module
+     * Bei is_semester_break=false: Erkläre die thematische Passung zu den Modulen dieses Semesters
+
+6. WICHTIG - item_type und is_semester_break:
    - Für Semesterferien: Verwende einen gültigen item_type (z.B. "COURSE", "PROJECT", "SKILL") 
      UND setze is_semester_break: true
    - "SEMESTER_BREAK" ist KEIN gültiger item_type!
-   - Beispiel: {{"item_type": "COURSE", "title": "Online-Kurs in Python", "is_semester_break": true}}
+   - Beispiel: {{"item_type": "COURSE", "title": "Online-Kurs in Python", "semester": 2, "is_semester_break": true, "description": "Zeitliche Entlastung während der Semesterferien, Vorbereitung auf Module im nächsten Semester"}}
 
-6. WICHTIG: Die Endknoten (Leaf Nodes) müssen Berufe sein (item_type: "CAREER", is_career_goal: true)
+7. WICHTIG: Die Endknoten (Leaf Nodes) müssen Berufe sein (item_type: "CAREER", is_career_goal: true)
    - Z.B. "Full Stack Developer", "Data Scientist", etc.
    - Diese sind die ZIELE der Roadmap
+   - Jeder Leaf Node MUSS ein "top_skills" Array enthalten mit den Top 5 Skills:
+     * Format: [{{"skill": "Skill-Name", "score": 85}}, ...]
+     * score: 0-100 (Wichtigkeit für diesen Beruf)
+     * Beispiel: {{"top_skills": [{{"skill": "Python", "score": 95}}, {{"skill": "Machine Learning", "score": 90}}, {{"skill": "Data Analysis", "score": 85}}, {{"skill": "Statistics", "score": 80}}, {{"skill": "SQL", "score": 75}}]}}
 
 Struktur-Beispiel:
 - Semester {current_semester} (level=0, parent_id=null)
@@ -195,6 +225,8 @@ WICHTIG:
 - level muss korrekt sein (0 für Root, 1+ für verschachtelt)
 - Mindestens ein Leaf Node (Beruf) pro Hauptpfad
 - order: Sortierung bei Geschwister-Nodes (1, 2, 3, ...)
+- semester: NIEMALS null - jeder Knoten braucht einen gültigen Semesterwert
+- top_skills: Nur für Leaf Nodes (is_career_goal=true) - Array mit 5 Skills und Scores (0-100)
 
 Antworte NUR mit dem JSON, keine zusätzlichen Erklärungen."""
 
@@ -277,14 +309,26 @@ Struktur die Roadmap folgendermaßen:
    - Bootcamps (item_type: "BOOTCAMP")
    - Zertifikate (item_type: "CERTIFICATE")
 
-5. WICHTIG - item_type und is_semester_break:
+5. WICHTIG - Semester darf NIEMALS null sein:
+   - JEDER Knoten (auch non-module nodes wie COURSE, PROJECT, SKILL, etc.) MUSS einen gültigen Semesterwert haben
+   - Für Knoten mit is_semester_break=true: Verwende das Semester, das der Semesterferien-Zeitraum zugeordnet ist
+     (z.B. wenn die Ferien zwischen Semester 2 und 3 liegen, verwende Semester 2 oder 3)
+   - Begründe in der description, warum dieses Semester für non-module nodes sinnvoll ist:
+     * Bei is_semester_break=true: Erkläre die zeitliche Entlastung, thematischen Übergang oder Vorbereitung auf spätere Module
+     * Bei is_semester_break=false: Erkläre die thematische Passung zu den Modulen dieses Semesters
+
+6. WICHTIG - item_type und is_semester_break:
    - Für Semesterferien: Verwende einen gültigen item_type (z.B. "COURSE", "PROJECT", "SKILL") 
      UND setze is_semester_break: true
    - "SEMESTER_BREAK" ist KEIN gültiger item_type!
-   - Beispiel: {{"item_type": "COURSE", "title": "Online-Kurs in Python", "is_semester_break": true}}
+   - Beispiel: {{"item_type": "COURSE", "title": "Online-Kurs in Python", "semester": 2, "is_semester_break": true, "description": "Zeitliche Entlastung während der Semesterferien, Vorbereitung auf Module im nächsten Semester"}}
 
-6. WICHTIG: Der Endknoten (Leaf Node) muss der Beruf "{job_name}" sein (item_type: "CAREER", is_career_goal: true)
+7. WICHTIG: Der Endknoten (Leaf Node) muss der Beruf "{job_name}" sein (item_type: "CAREER", is_career_goal: true)
    - Dies ist das ZIEL der Roadmap
+   - Der Leaf Node MUSS ein "top_skills" Array enthalten mit den Top 5 Skills:
+     * Format: [{{"skill": "Skill-Name", "score": 85}}, ...]
+     * score: 0-100 (Wichtigkeit für diesen Beruf)
+     * Beispiel: {{"top_skills": [{{"skill": "Python", "score": 95}}, {{"skill": "Machine Learning", "score": 90}}, {{"skill": "Data Analysis", "score": 85}}, {{"skill": "Statistics", "score": 80}}, {{"skill": "SQL", "score": 75}}]}}
 
 Struktur-Beispiel:
 - Semester {current_semester} (level=0, parent_id=null)
@@ -300,6 +344,8 @@ WICHTIG:
 - level muss korrekt sein (0 für Root, 1+ für verschachtelt)
 - Der Leaf Node muss der Beruf "{job_name}" sein
 - order: Sortierung bei Geschwister-Nodes (1, 2, 3, ...)
+- semester: NIEMALS null - jeder Knoten braucht einen gültigen Semesterwert
+- top_skills: Für den Leaf Node (is_career_goal=true) - Array mit 5 Skills und Scores (0-100)
 
 Antworte NUR mit dem JSON, keine zusätzlichen Erklärungen."""
 

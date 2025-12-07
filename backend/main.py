@@ -78,9 +78,24 @@ async def unipilot_exception_handler(request: Request, exc: UniPilotException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle Pydantic validation errors."""
+    # Clean up errors to make them JSON serializable
+    cleaned_errors = []
+    for error in exc.errors():
+        cleaned_error = {}
+        for key, value in error.items():
+            # Convert bytes to string representation if needed
+            if isinstance(value, bytes):
+                try:
+                    cleaned_error[key] = value.decode('utf-8')
+                except (UnicodeDecodeError, AttributeError):
+                    cleaned_error[key] = f"<bytes: {len(value)} bytes>"
+            else:
+                cleaned_error[key] = value
+        cleaned_errors.append(cleaned_error)
+    
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": exc.errors(), "error_code": "VALIDATION_ERROR"},
+        content={"detail": cleaned_errors, "error_code": "VALIDATION_ERROR"},
     )
 
 

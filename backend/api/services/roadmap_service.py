@@ -72,6 +72,16 @@ class RoadmapService:
             # Convert to response model
             children_responses = [build_node(child) for child in children_items]
 
+            # Parse top_skills from JSON string if present
+            top_skills = None
+            if item.top_skills:
+                try:
+                    top_skills_data = json.loads(item.top_skills)
+                    from api.models.roadmap import TopSkill
+                    top_skills = [TopSkill(**skill) for skill in top_skills_data]
+                except (json.JSONDecodeError, TypeError, ValueError) as e:
+                    logger.warning(f"Failed to parse top_skills for item {item.id}: {e}")
+
             return RoadmapItemTreeResponse(
                 id=item.id,
                 roadmap_id=item.roadmap_id,
@@ -87,6 +97,7 @@ class RoadmapService:
                 is_career_goal=item.is_career_goal,
                 module_id=item.module_id,
                 is_important=item.is_important,
+                top_skills=top_skills,
                 created_at=item.created_at,
                 children=children_responses,
             )
@@ -119,26 +130,38 @@ class RoadmapService:
         # Convert items to flat list of responses
         from api.models.roadmap import RoadmapItemResponse
 
-        items_response = [
-            RoadmapItemResponse(
-                id=item.id,
-                roadmap_id=item.roadmap_id,
-                parent_id=item.parent_id,
-                item_type=item.item_type,  # Pydantic should handle enum conversion
-                title=item.title,
-                description=item.description,
-                semester=item.semester,
-                is_semester_break=item.is_semester_break,
-                order=item.order,
-                level=item.level,
-                is_leaf=item.is_leaf,
-                is_career_goal=item.is_career_goal,
-                module_id=item.module_id,
-                is_important=item.is_important,
-                created_at=item.created_at,
+        items_response = []
+        for item in items:
+            # Parse top_skills from JSON string if present
+            top_skills = None
+            if item.top_skills:
+                try:
+                    top_skills_data = json.loads(item.top_skills)
+                    from api.models.roadmap import TopSkill
+                    top_skills = [TopSkill(**skill) for skill in top_skills_data]
+                except (json.JSONDecodeError, TypeError, ValueError) as e:
+                    logger.warning(f"Failed to parse top_skills for item {item.id}: {e}")
+
+            items_response.append(
+                RoadmapItemResponse(
+                    id=item.id,
+                    roadmap_id=item.roadmap_id,
+                    parent_id=item.parent_id,
+                    item_type=item.item_type,  # Pydantic should handle enum conversion
+                    title=item.title,
+                    description=item.description,
+                    semester=item.semester,
+                    is_semester_break=item.is_semester_break,
+                    order=item.order,
+                    level=item.level,
+                    is_leaf=item.is_leaf,
+                    is_career_goal=item.is_career_goal,
+                    module_id=item.module_id,
+                    is_important=item.is_important,
+                    top_skills=top_skills,
+                    created_at=item.created_at,
+                )
             )
-            for item in items
-        ]
 
         return RoadmapResponse(
             id=roadmap.id,
@@ -296,6 +319,27 @@ class RoadmapService:
                     )
                     item_type_str = "COURSE"
 
+                # Validate semester - MUST NEVER be null
+                semester = item_data.get("semester")
+                if semester is None:
+                    raise ValidationError(
+                        f"Semester must not be null for item: {item_data.get('title')}. "
+                        "Every roadmap item must have a valid semester value."
+                    )
+
+                # Process top_skills for leaf nodes (is_career_goal=true)
+                top_skills_json = None
+                if item_data.get("is_career_goal", False) and item_data.get("is_leaf", False):
+                    top_skills = item_data.get("top_skills")
+                    if top_skills:
+                        try:
+                            # Validate and store as JSON string
+                            top_skills_json = json.dumps(top_skills, ensure_ascii=False)
+                        except (TypeError, ValueError) as e:
+                            logger.warning(
+                                f"Failed to serialize top_skills for item {item_data.get('title')}: {e}"
+                            )
+
                 # Create roadmap item
                 roadmap_item = RoadmapItem(
                     roadmap_id=roadmap.id,
@@ -303,7 +347,7 @@ class RoadmapService:
                     item_type=RoadmapItemType(item_type_str),
                     title=item_data["title"],
                     description=item_data.get("description"),
-                    semester=item_data.get("semester"),
+                    semester=semester,
                     is_semester_break=item_data.get("is_semester_break", False),
                     order=item_data.get("order", 0),
                     level=item_data.get("level", 0),
@@ -311,6 +355,7 @@ class RoadmapService:
                     is_career_goal=item_data.get("is_career_goal", False),
                     module_id=item_data.get("module_id"),
                     is_important=item_data.get("is_important", False),
+                    top_skills=top_skills_json,
                 )
                 db.add(roadmap_item)
                 db.flush()
@@ -395,17 +440,22 @@ class RoadmapService:
             raise ValidationError("Job must be a leaf node", "NOT_A_JOB")
 
         # Get or create a topic field for this job (for backward compatibility with Roadmap model)
-        # We'll use the job's topic_field if it exists, or create a temporary one
+        # We'll use the job's topic_field if it exists, or create a unique one for this job
         from database.models import TopicField
 
         topic_field = job.topic_field
         if not topic_field:
-            # Create a temporary topic field for this job
+            # Create a unique topic field for this job
             topic_field = TopicField(
                 name=f"Roadmap für {job.name}",
                 description=job.description or f"Roadmap für den Beruf {job.name}",
             )
             db.add(topic_field)
+            db.flush()
+            
+            # Update job's topic_field_id to link it to this topic field
+            # This ensures each job has a unique topic_field_id
+            job.topic_field_id = topic_field.id
             db.flush()
 
         # Check if roadmap already exists for this job
@@ -529,6 +579,27 @@ class RoadmapService:
                     )
                     item_type_str = "COURSE"
 
+                # Validate semester - MUST NEVER be null
+                semester = item_data.get("semester")
+                if semester is None:
+                    raise ValidationError(
+                        f"Semester must not be null for item: {item_data.get('title')}. "
+                        "Every roadmap item must have a valid semester value."
+                    )
+
+                # Process top_skills for leaf nodes (is_career_goal=true)
+                top_skills_json = None
+                if item_data.get("is_career_goal", False) and item_data.get("is_leaf", False):
+                    top_skills = item_data.get("top_skills")
+                    if top_skills:
+                        try:
+                            # Validate and store as JSON string
+                            top_skills_json = json.dumps(top_skills, ensure_ascii=False)
+                        except (TypeError, ValueError) as e:
+                            logger.warning(
+                                f"Failed to serialize top_skills for item {item_data.get('title')}: {e}"
+                            )
+
                 # Create roadmap item
                 roadmap_item = RoadmapItem(
                     roadmap_id=roadmap.id,
@@ -536,7 +607,7 @@ class RoadmapService:
                     item_type=RoadmapItemType(item_type_str),
                     title=item_data["title"],
                     description=item_data.get("description"),
-                    semester=item_data.get("semester"),
+                    semester=semester,
                     is_semester_break=item_data.get("is_semester_break", False),
                     order=item_data.get("order", 0),
                     level=item_data.get("level", 0),
@@ -544,6 +615,7 @@ class RoadmapService:
                     is_career_goal=item_data.get("is_career_goal", False),
                     module_id=item_data.get("module_id"),
                     is_important=item_data.get("is_important", False),
+                    top_skills=top_skills_json,
                 )
                 db.add(roadmap_item)
                 db.flush()

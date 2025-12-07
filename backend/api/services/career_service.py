@@ -93,6 +93,7 @@ class CareerService:
                 description=node.description,
                 is_leaf=node.is_leaf,
                 level=node.level,
+                topic_field_id=node.topic_field_id,  # Direct access to topic_field_id
                 topic_field=(
                     {
                         "id": node.topic_field.id,

@@ -1,0 +1,78 @@
+### Uni Pilot API - Career Tree Tests
+### Tests for fetching the career tree structure
+
+@baseUrl = http://localhost:8000
+@apiVersion = v1
+
+### Use token from login (optional for career tree - it's public)
+@token = YOUR_TOKEN_HERE
+
+### 1. Get Career Tree for Study Program (Public endpoint)
+GET {{baseUrl}}/api/{{apiVersion}}/study-programs/1/career-tree
+Accept: application/json
+
+### 2. Get Career Tree for Study Program ID 2
+GET {{baseUrl}}/api/{{apiVersion}}/study-programs/2/career-tree
+Accept: application/json
+
+### 3. Get Career Tree - Different Study Program
+GET {{baseUrl}}/api/{{apiVersion}}/study-programs/3/career-tree
+Accept: application/json
+
+### 4. Select Job (requires authentication)
+PUT {{baseUrl}}/api/{{apiVersion}}/users/me/profile/job
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "job_id": 11
+}
+
+### 5. Select Job - Example: React Developer
+PUT {{baseUrl}}/api/{{apiVersion}}/users/me/profile/job
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "job_id": 86
+}
+
+### 6. Select Job - Example: Backend Developer
+PUT {{baseUrl}}/api/{{apiVersion}}/users/me/profile/job
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "job_id": 112
+}
+
+### 7. Generate Roadmap for Job (requires authentication)
+POST {{baseUrl}}/api/{{apiVersion}}/jobs/11/roadmap/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+### 8. Generate Roadmap for React Developer Job
+POST {{baseUrl}}/api/{{apiVersion}}/jobs/86/roadmap/generate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+### 9. Create Chat Session for Job (requires authentication)
+POST {{baseUrl}}/api/{{apiVersion}}/jobs/11/chat/sessions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+### 10. Create Chat Session for React Developer Job
+POST {{baseUrl}}/api/{{apiVersion}}/jobs/86/chat/sessions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+### 11. Send Message in Job Chat Session (requires authentication)
+### First get session_id from step 9 or 10, then use it here
+POST {{baseUrl}}/api/{{apiVersion}}/chat/sessions/1/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "content": "Welche Skills brauche ich für diesen Job?"
+}
+

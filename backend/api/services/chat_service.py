@@ -48,10 +48,20 @@ class ChatService:
             raise ValueError("Either topic_field_id or career_tree_node_id must be provided")
 
         # Try to find existing session
+        # For jobs: search by both topic_field_id and career_tree_node_id to ensure correct matching
         query = db.query(ChatSession).filter(ChatSession.user_id == user_id)
-        if topic_field_id:
+        
+        if topic_field_id and career_tree_node_id:
+            # For jobs: both fields must match
+            query = query.filter(
+                ChatSession.topic_field_id == topic_field_id,
+                ChatSession.career_tree_node_id == career_tree_node_id,
+            )
+        elif topic_field_id:
+            # For topic field only sessions
             query = query.filter(ChatSession.topic_field_id == topic_field_id)
-        if career_tree_node_id:
+        elif career_tree_node_id:
+            # For legacy job sessions (backward compatibility)
             query = query.filter(ChatSession.career_tree_node_id == career_tree_node_id)
 
         session = query.first()
@@ -72,6 +82,8 @@ class ChatService:
     def get_or_create_job_session(user_id: int, job_id: int, db: Session) -> ChatSession:
         """
         Get existing chat session for a job or create a new one.
+        
+        Also sets the job's topic_field_id to connect the chat session with the roadmap.
 
         Args:
             user_id: User ID
@@ -81,9 +93,24 @@ class ChatService:
         Returns:
             ChatSession object
         """
+        # Get job to access its topic_field_id
+        job = db.query(CareerTreeNode).filter(CareerTreeNode.id == job_id).first()
+        if not job:
+            raise NotFoundError(f"Career tree node with id {job_id} not found", "JOB_NOT_FOUND")
+        
+        if not job.is_leaf:
+            raise NotFoundError(
+                f"Career tree node with id {job_id} is not a leaf node (job)",
+                "NOT_A_JOB",
+            )
+        
+        # Use topic_field_id from job to connect chat session with roadmap
+        topic_field_id = job.topic_field_id
+        
         return ChatService.get_or_create_session(
             user_id=user_id,
-            career_tree_node_id=job_id,
+            topic_field_id=topic_field_id,  # Connect to roadmap via topic_field_id
+            career_tree_node_id=job_id,  # Keep job reference
             db=db,
         )
 
