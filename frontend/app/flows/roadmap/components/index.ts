@@ -5,3 +5,4 @@
 export { TodoItem } from './TodoItem';
 export { SemesterAccordion } from './SemesterAccordion';
 export { SkillGapCard } from './SkillGapCard';
+export { default as PDFDownloadButton } from './PDFDownloadButton';
