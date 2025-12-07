@@ -2,18 +2,22 @@ import baseUrl from './baseUrl';
 import type { CareerPath, Skill } from '~/types';
 
 interface RoadmapItem {
-  id: number;
+  item_type: 'MODULE' | 'COURSE' | 'PROJECT' | 'SKILL' | 'BOOK' | 'CERTIFICATE' | 'INTERNSHIP' | 'BOOTCAMP' | 'CAREER';
   title: string;
-  item_type: string;
-  description?: string;
+  description: string;
   semester?: number;
-  is_semester_break?: boolean;
+  is_semester_break: boolean;
+  order: number;
+  level: number;
   is_leaf: boolean;
   is_career_goal: boolean;
-  level: number;
-  order: number;
-  module_id?: number;
-  is_important?: boolean;
+  module_id: number | null;
+  is_important: boolean;
+  top_skills: any | null;
+  id: number;
+  roadmap_id: number;
+  parent_id: number | null;
+  created_at: string;
   children: RoadmapItem[];
 }
 
@@ -23,7 +27,7 @@ interface RoadmapResponse {
   name: string;
   description: string;
   tree: RoadmapItem;
-  career_goals: RoadmapItem[];
+  items: RoadmapItem[];
 }
 
 /**
@@ -49,47 +53,31 @@ export async function generateRoadmap(
 
   const roadmapData: RoadmapResponse = await response.json();
 
-  // Transform the tree structure to CareerPath format
-  const transformRoadmapItem = (item: RoadmapItem, semester: number): any => {
-    if (item.is_leaf && item.is_career_goal) {
-      // This is a career goal - we'll use it for the job info
-      return null;
-    }
-
-    const todo = {
-      id: item.id.toString(),
-      title: item.title,
-      type: item.item_type.toLowerCase() as 'module' | 'internship' | 'certification' | 'project' | 'skill',
-      completed: false,
-      description: item.description,
-    };
-
-    // Process children recursively
-    const children = item.children
-      .map(child => transformRoadmapItem(child, item.semester || semester))
-      .filter(Boolean);
-
-    return { todo, children, semester: item.semester || semester };
-  };
-
-  // Group items by semester
-  const semesterPlans: Record<number, any[]> = {};
+  // Group items by semester and is_semester_break
+  const semesterPlans: Record<number, { regular: any[]; semesterBreak: any[] }> = {};
 
   const processTree = (item: RoadmapItem, parentSemester?: number) => {
     const semester = item.semester || parentSemester || 1;
     
-    if (item.item_type === 'MODULE' || item.item_type === 'SKILL' || item.item_type === 'PROJECT' || item.item_type === 'CERTIFICATION') {
+    if (item.item_type === 'MODULE' || item.item_type === 'COURSE' || item.item_type === 'PROJECT' || item.item_type === 'SKILL' || item.item_type === 'BOOK' || item.item_type === 'CERTIFICATE' || item.item_type === 'INTERNSHIP' || item.item_type === 'BOOTCAMP' || item.item_type === 'CAREER') {
       if (!semesterPlans[semester]) {
-        semesterPlans[semester] = [];
+        semesterPlans[semester] = { regular: [], semesterBreak: [] };
       }
       
-      semesterPlans[semester].push({
+      const itemData = {
         id: item.id.toString(),
         title: item.title,
-        type: item.item_type.toLowerCase() as 'module' | 'internship' | 'certification' | 'project' | 'skill',
+        type: item.item_type.toLowerCase(),
         completed: false,
         description: item.description,
-      });
+        is_semester_break: item.is_semester_break,
+      };
+
+      if (item.is_semester_break) {
+        semesterPlans[semester].semesterBreak.push(itemData);
+      } else {
+        semesterPlans[semester].regular.push(itemData);
+      }
     }
 
     // Process children
@@ -98,14 +86,30 @@ export async function generateRoadmap(
 
   processTree(roadmapData.tree);
 
-  // Convert to SemesterPlan format
-  const roadmap = Object.entries(semesterPlans)
+  // Convert to SemesterPlan format - separate regular and semester break
+  const roadmap: { semester: number; title: string; todos: any[] }[] = [];
+  
+  Object.entries(semesterPlans)
     .sort(([a], [b]) => parseInt(a) - parseInt(b))
-    .map(([semester, todos]) => ({
-      semester: parseInt(semester),
-      title: `Semester ${semester}`,
-      todos: todos,
-    }));
+    .forEach(([semester, todos]) => {
+      // Add regular semester items
+      if (todos.regular.length > 0) {
+        roadmap.push({
+          semester: parseInt(semester),
+          title: `Semester ${semester}`,
+          todos: todos.regular,
+        });
+      }
+      
+      // Add semester break items as separate entry
+      if (todos.semesterBreak.length > 0) {
+        roadmap.push({
+          semester: parseInt(semester),
+          title: `Semesterferien ${semester}`,
+          todos: todos.semesterBreak,
+        });
+      }
+    });
 
   // Get career goal info
   const careerGoal = roadmapData.career_goals?.[0] || roadmapData.tree;

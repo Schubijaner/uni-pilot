@@ -10,21 +10,18 @@ interface TodoItemProps {
   onToggle: () => void;
 }
 
+// ...existing code...
+
 const typeConfig: Record<TodoType, { icon: string; color: string; bg: string }> = {
   module: {
     icon: '📚',
     color: 'text-blue-600 dark:text-blue-400',
     bg: 'bg-blue-100 dark:bg-blue-900/30',
   },
-  internship: {
-    icon: '💼',
-    color: 'text-green-600 dark:text-green-400',
-    bg: 'bg-green-100 dark:bg-green-900/30',
-  },
-  certification: {
-    icon: '🏆',
-    color: 'text-amber-600 dark:text-amber-400',
-    bg: 'bg-amber-100 dark:bg-amber-900/30',
+  course: {
+    icon: '🎓',
+    color: 'text-cyan-600 dark:text-cyan-400',
+    bg: 'bg-cyan-100 dark:bg-cyan-900/30',
   },
   project: {
     icon: '🚀',
@@ -36,14 +33,43 @@ const typeConfig: Record<TodoType, { icon: string; color: string; bg: string }> 
     color: 'text-pink-600 dark:text-pink-400',
     bg: 'bg-pink-100 dark:bg-pink-900/30',
   },
+  book: {
+    icon: '📖',
+    color: 'text-orange-600 dark:text-orange-400',
+    bg: 'bg-orange-100 dark:bg-orange-900/30',
+  },
+  certificate: {
+    icon: '🏆',
+    color: 'text-amber-600 dark:text-amber-400',
+    bg: 'bg-amber-100 dark:bg-amber-900/30',
+  },
+  internship: {
+    icon: '💼',
+    color: 'text-green-600 dark:text-green-400',
+    bg: 'bg-green-100 dark:bg-green-900/30',
+  },
+  bootcamp: {
+    icon: '🏕️',
+    color: 'text-red-600 dark:text-red-400',
+    bg: 'bg-red-100 dark:bg-red-900/30',
+  },
+  career: {
+    icon: '🎯',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bg: 'bg-indigo-100 dark:bg-indigo-900/30',
+  },
 };
 
 const typeLabels: Record<TodoType, string> = {
   module: 'Modul',
-  internship: 'Praktikum',
-  certification: 'Zertifikat',
+  course: 'Kurs',
   project: 'Projekt',
   skill: 'Skill',
+  book: 'Buch',
+  certificate: 'Zertifikat',
+  internship: 'Praktikum',
+  bootcamp: 'Bootcamp',
+  career: 'Karriere',
 };
 
 export const TodoItem: React.FC<TodoItemProps> = ({ todo, onToggle }) => {

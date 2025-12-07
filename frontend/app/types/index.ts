@@ -104,7 +104,7 @@ export interface FilterOption {
 // Roadmap Types
 // ============================================
 
-export type TodoType = 'module' | 'internship' | 'certification' | 'project' | 'skill';
+export type TodoType = 'module' | 'course' | 'project' | 'skill' | 'book' | 'certificate' | 'internship' | 'bootcamp' | 'career';
 
 export interface RoadmapTodo {
   id: string;
