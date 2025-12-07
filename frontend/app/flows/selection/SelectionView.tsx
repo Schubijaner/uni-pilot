@@ -356,7 +356,7 @@ export const SelectionView: React.FC = () => {
 
   // Check if roadmap can be created
   const canCreateRoadmap = useMemo(() => {
-    return visibleLeafCount > 0 && visibleLeafCount <= 3;
+    return visibleLeafCount === 1;
   }, [visibleLeafCount]);
 
   // Handlers
@@ -390,40 +390,18 @@ export const SelectionView: React.FC = () => {
   }, [visibleQuestions.length, currentQuestionIndex]);
 
   const handleCreateRoadmap = useCallback(async () => {
-    if (!filteredTreeData || !canCreateRoadmap) {
-      return;
-    }
+    if (filteredTreeData === null) return;
 
-    /*
-    
-    // Collect all leaf nodes from the filtered tree
-    const targetJobs = collectLeafNodes(filteredTreeData.nodes);
-    
-    
-    // Get topic_field IDs from leaf nodes
-    const topicFieldIds = targetJobs
-      .filter(job => job.topic_field)
-      .map(job => job.topic_field!.id);
-      
-    
-    if (topicFieldIds.length > 0) {
-      // TODO: Get token from auth context or localStorage
-      const token = localStorage.getItem('auth_token') || '';
-      if (!token) {
-        console.error('No authentication token found');
-        // Redirect to login or show error
-        return;
-      }
-      
+    const targetJobs = collectLeafNodes(filteredTreeData.nodes)[0];
+    if (targetJobs && token) {
       try {
-        await generateRoadmap(topicFieldIds, token);
+        await generateRoadmap(targetJobs.topic_field_id!, token);
         navigate('/roadmap');
       } catch (error) {
         console.error('Failed to generate roadmap:', error);
         // Show error to user
       }
     }
-      */
   }, [filteredTreeData, canCreateRoadmap, generateRoadmap, navigate]);
 
   return (

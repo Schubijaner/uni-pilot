@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router';
 import { Card, CardHeader, CardTitle, CardDescription, Input, Button } from '~/components/ui';
 import { Layout } from '~/components/layout';
 import { useApp } from '~/contexts';
+import { logIn } from '~/api/token';
 
 interface FormData {
   email: string;
@@ -21,7 +22,7 @@ interface FormErrors {
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { setAuthenticated } = useApp();
+  const { setAuthenticated, login } = useApp();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     email: '',
@@ -55,11 +56,14 @@ export default function LoginPage() {
     setErrors({});
 
     try {
-      // TODO: Implement actual login API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
+      const response = await logIn(
+        formData.email,
+        formData.password,
+      );
+      const token = response.token;
+      login(token);
       setAuthenticated(true);
-      navigate('/roadmap');
+      navigate('/selection');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Anmeldung fehlgeschlagen';
       setErrors({ general: message });

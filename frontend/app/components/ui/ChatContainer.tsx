@@ -50,11 +50,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       setIsLoading(true);
       setError(null);
       try {
-        const chatSession = await createOrGetJobChatSession(topicFieldId, token);
-        setSession(chatSession);
+        const localChatSession = await createOrGetJobChatSession(topicFieldId, token);
+        setSession(localChatSession);
 
         // Load existing messages
-        const existingMessages = await getChatMessages(chatSession.id, token);
+        const existingMessages = await getChatMessages(localChatSession.id, token);
         setMessages(existingMessages);
       } catch (err) {
         console.error('Failed to initialize chat session:', err);

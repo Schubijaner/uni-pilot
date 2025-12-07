@@ -98,7 +98,7 @@ interface AppContextType {
   toggleJob: (jobId: string) => void;
   isJobSelected: (jobId: string) => boolean;
   setUserSkills: (skills: Skill[]) => void;
-  generateRoadmap: (topicFieldIds: number[], token: string) => Promise<void>;
+  generateRoadmap: (jobId: number, token: string) => Promise<void>;
   toggleTodo: (semester: number, todoId: string) => void;
   isAuthenticated: boolean;
   setAuthenticated: (value: boolean) => void;
@@ -189,16 +189,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     dispatch({ type: 'SET_USER_SKILLS', payload: skills });
   }, []);
 
-  const generateRoadmapAction = useCallback(async (topicFieldIds: number[], token: string) => {
-    // For now, use the first topic field ID
-    // In the future, we might want to handle multiple topic fields
-    if (topicFieldIds.length === 0) {
-      console.error('No topic field IDs provided');
-      return;
-    }
-    
+  const generateRoadmapAction = useCallback(async (jobId: number, token: string) => {
     try {
-      const roadmap = await generateRoadmapAPI(topicFieldIds[0], token);
+      const roadmap = await generateRoadmapAPI(jobId, token);
       dispatch({ type: 'GENERATE_ROADMAP', payload: roadmap });
     } catch (error) {
       console.error('Failed to generate roadmap:', error);

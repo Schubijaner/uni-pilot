@@ -35,22 +35,13 @@ export async function generateRoadmap(
 ): Promise<CareerPath> {
 
   // First try to get existing roadmap
-  let response = await fetch(`${baseUrl}/topic-fields/${topicFieldId}/roadmap?format=tree`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-
-  // If roadmap doesn't exist, generate it
-  if (response.status === 404) {
-    response = await fetch(`${baseUrl}/topic-fields/${topicFieldId}/roadmap/generate`, {
-      method: 'POST',
+  let response = await fetch(`${baseUrl}/topic-fields/${topicFieldId}/roadmap`, {
+    method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-    });
-  }
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to get/generate roadmap: ${response.statusText}`);

@@ -57,7 +57,7 @@ export async function createOrGetJobChatSession(
 ): Promise<ChatSession> {
     console.log("createOrGetJobChatSession called with jobId:", jobId);
   const response = await fetch(
-    `${baseUrl}/api/v1/jobs/${jobId}/chat/sessions`,
+    `${baseUrl}/topic-fields/${jobId}/chat/sessions`,
     {
       method: 'POST',
       headers: {
@@ -71,7 +71,9 @@ export async function createOrGetJobChatSession(
     throw new Error(`Failed to create/get chat session: ${response.statusText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log("createOrGetJobChatSession response data:", data);
+  return data;
 }
 
 /**
@@ -89,7 +91,7 @@ export async function getChatMessages(
   });
 
   const response = await fetch(
-    `${baseUrl}/api/v1/chat/sessions/${sessionId}/messages?${params}`,
+    `${baseUrl}/chat/sessions/${sessionId}/messages?${params}`,
     {
       method: 'GET',
       headers: {
@@ -115,7 +117,7 @@ export async function sendChatMessage(
   token: string
 ): Promise<SendMessageResponse> {
   const response = await fetch(
-    `${baseUrl}/api/v1/chat/sessions/${sessionId}/messages`,
+    `${baseUrl}/chat/sessions/${sessionId}/messages`,
     {
       method: 'POST',
       headers: {
@@ -152,7 +154,7 @@ export async function getUserChatSessions(
   }
 
   const response = await fetch(
-    `${baseUrl}/api/v1/users/me/chat/sessions?${params}`,
+    `${baseUrl}/users/me/chat/sessions?${params}`,
     {
       method: 'GET',
       headers: {
