@@ -56,7 +56,7 @@ coverage.xml
 # Django stuff:
 *.log
 local_settings.py
-db.sqlite3
+# db.sqlite3  # Allowed - tracking database files
 db.sqlite3-journal
 
 # Flask stuff:
@@ -128,11 +128,12 @@ dmypy.json
 .pyre/
 
 # SQLite databases
+# Allow .db, .sqlite, and .sqlite3 files - they are tracked in git
 *.db-journal
 *.db-shm
 *.db-wal
-*.sqlite
-*.sqlite3
+# *.sqlite  # Allowed - tracking database files
+# *.sqlite3  # Allowed - tracking database files
 
 # IDEs and Editors
 # VS Code
