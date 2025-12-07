@@ -72,15 +72,29 @@ class RoadmapService:
             # Convert to response model
             children_responses = [build_node(child) for child in children_items]
 
+            from api.models.roadmap import (
+                TopSkill,
+                SkillImpact,
+                parse_skill_data_from_description,
+            )
+
             # Parse top_skills from JSON string if present
             top_skills = None
             if item.top_skills:
                 try:
                     top_skills_data = json.loads(item.top_skills)
-                    from api.models.roadmap import TopSkill
                     top_skills = [TopSkill(**skill) for skill in top_skills_data]
                 except (json.JSONDecodeError, TypeError, ValueError) as e:
                     logger.warning(f"Failed to parse top_skills for item {item.id}: {e}")
+
+            # Parse skill_impact from description
+            skill_impact = None
+            skill_data = parse_skill_data_from_description(item.description)
+            if skill_data and "skill_impact" in skill_data:
+                try:
+                    skill_impact = [SkillImpact(**impact) for impact in skill_data["skill_impact"]]
+                except (TypeError, ValueError) as e:
+                    logger.warning(f"Failed to parse skill_impact for item {item.id}: {e}")
 
             return RoadmapItemTreeResponse(
                 id=item.id,
@@ -98,6 +112,7 @@ class RoadmapService:
                 module_id=item.module_id,
                 is_important=item.is_important,
                 top_skills=top_skills,
+                skill_impact=skill_impact,
                 created_at=item.created_at,
                 children=children_responses,
             )
@@ -130,17 +145,37 @@ class RoadmapService:
         # Convert items to flat list of responses
         from api.models.roadmap import RoadmapItemResponse
 
+        from api.models.roadmap import (
+            TopSkill,
+            SkillImpact,
+            parse_skill_data_from_description,
+            parse_current_skills_from_description,
+        )
+
         items_response = []
+        target_skills = None  # Will be extracted from leaf nodes
+        
         for item in items:
             # Parse top_skills from JSON string if present
             top_skills = None
             if item.top_skills:
                 try:
                     top_skills_data = json.loads(item.top_skills)
-                    from api.models.roadmap import TopSkill
                     top_skills = [TopSkill(**skill) for skill in top_skills_data]
+                    # Extract target_skills from first leaf node found
+                    if item.is_career_goal and item.is_leaf and target_skills is None:
+                        target_skills = top_skills
                 except (json.JSONDecodeError, TypeError, ValueError) as e:
                     logger.warning(f"Failed to parse top_skills for item {item.id}: {e}")
+
+            # Parse skill_impact from description
+            skill_impact = None
+            skill_data = parse_skill_data_from_description(item.description)
+            if skill_data and "skill_impact" in skill_data:
+                try:
+                    skill_impact = [SkillImpact(**impact) for impact in skill_data["skill_impact"]]
+                except (TypeError, ValueError) as e:
+                    logger.warning(f"Failed to parse skill_impact for item {item.id}: {e}")
 
             items_response.append(
                 RoadmapItemResponse(
@@ -159,9 +194,13 @@ class RoadmapService:
                     module_id=item.module_id,
                     is_important=item.is_important,
                     top_skills=top_skills,
+                    skill_impact=skill_impact,
                     created_at=item.created_at,
                 )
             )
+
+        # Parse current_skills from roadmap description
+        current_skills = parse_current_skills_from_description(roadmap.description)
 
         return RoadmapResponse(
             id=roadmap.id,
@@ -172,6 +211,8 @@ class RoadmapService:
             updated_at=roadmap.updated_at,
             items=items_response if items_response else [],  # Ensure list, not None
             tree=tree_root,  # Add tree structure (can be None if no items)
+            target_skills=target_skills,
+            current_skills=current_skills,
         )
 
     def generate_roadmap(
@@ -218,6 +259,14 @@ class RoadmapService:
             )
         )
         
+        # Get completed modules for the user
+        completed_module_ids = [row[0] for row in completed_module_ids_subquery.all()]
+        completed_modules = (
+            db.query(Module)
+            .filter(Module.id.in_(completed_module_ids))
+            .all() if completed_module_ids else []
+        )
+        
         # Get all modules for study program, excluding completed ones
         available_modules = (
             db.query(Module)
@@ -228,11 +277,12 @@ class RoadmapService:
         
         logger.info(
             f"Found {len(available_modules)} available (not completed) modules "
+            f"and {len(completed_modules)} completed modules "
             f"for user {user_profile.user_id} in study program {study_program.id}"
         )
 
-        # Generate prompt
-        prompt = generate_roadmap_prompt(study_program, user_profile, topic_field, available_modules)
+        # Generate prompt with completed modules
+        prompt = generate_roadmap_prompt(study_program, user_profile, topic_field, available_modules, completed_modules)
 
         try:
             # Call LLM service
@@ -251,11 +301,23 @@ class RoadmapService:
                     "INVALID_LLM_RESPONSE",
                 )
 
+            # Process current_skills from LLM response
+            current_skills = roadmap_data.get("current_skills")
+            roadmap_description = roadmap_data.get("description") or ""
+            
+            # Store current_skills in description with placeholder
+            if current_skills:
+                try:
+                    current_skills_json = json.dumps({"current_skills": current_skills}, ensure_ascii=False)
+                    roadmap_description += f"\n\n__CURRENT_SKILLS_START__\n{current_skills_json}\n__CURRENT_SKILLS_END__"
+                except (TypeError, ValueError) as e:
+                    logger.warning(f"Failed to serialize current_skills: {e}")
+
             # Create roadmap
             roadmap = Roadmap(
                 topic_field_id=topic_field.id,
                 name=roadmap_data["name"],
-                description=roadmap_data.get("description"),
+                description=roadmap_description,
             )
             db.add(roadmap)
             db.flush()  # Get roadmap.id
@@ -340,13 +402,27 @@ class RoadmapService:
                                 f"Failed to serialize top_skills for item {item_data.get('title')}: {e}"
                             )
 
+                # Process skill_impact for all items
+                skill_impact = item_data.get("skill_impact")
+                item_description = item_data.get("description") or ""
+                
+                # Store skill_impact in description with placeholder
+                if skill_impact:
+                    try:
+                        skill_impact_json = json.dumps({"skill_impact": skill_impact}, ensure_ascii=False)
+                        item_description += f"\n\n__SKILL_DATA_START__\n{skill_impact_json}\n__SKILL_DATA_END__"
+                    except (TypeError, ValueError) as e:
+                        logger.warning(
+                            f"Failed to serialize skill_impact for item {item_data.get('title')}: {e}"
+                        )
+
                 # Create roadmap item
                 roadmap_item = RoadmapItem(
                     roadmap_id=roadmap.id,
                     parent_id=parent_id,
                     item_type=RoadmapItemType(item_type_str),
                     title=item_data["title"],
-                    description=item_data.get("description"),
+                    description=item_description,
                     semester=semester,
                     is_semester_break=item_data.get("is_semester_break", False),
                     order=item_data.get("order", 0),
@@ -478,6 +554,14 @@ class RoadmapService:
             )
         )
 
+        # Get completed modules for the user
+        completed_module_ids = [row[0] for row in completed_module_ids_subquery.all()]
+        completed_modules = (
+            db.query(Module)
+            .filter(Module.id.in_(completed_module_ids))
+            .all() if completed_module_ids else []
+        )
+
         # Get all modules for study program, excluding completed ones
         available_modules = (
             db.query(Module)
@@ -488,11 +572,12 @@ class RoadmapService:
 
         logger.info(
             f"Found {len(available_modules)} available (not completed) modules "
+            f"and {len(completed_modules)} completed modules "
             f"for user {user_profile.user_id} in study program {study_program.id}"
         )
 
-        # Generate prompt for job
-        prompt = generate_roadmap_prompt_for_job(study_program, user_profile, job, available_modules)
+        # Generate prompt for job with completed modules
+        prompt = generate_roadmap_prompt_for_job(study_program, user_profile, job, available_modules, completed_modules)
 
         try:
             # Call LLM service
@@ -512,11 +597,23 @@ class RoadmapService:
                     "INVALID_LLM_RESPONSE",
                 )
 
+            # Process current_skills from LLM response
+            current_skills = roadmap_data.get("current_skills")
+            roadmap_description = roadmap_data.get("description") or ""
+            
+            # Store current_skills in description with placeholder
+            if current_skills:
+                try:
+                    current_skills_json = json.dumps({"current_skills": current_skills}, ensure_ascii=False)
+                    roadmap_description += f"\n\n__CURRENT_SKILLS_START__\n{current_skills_json}\n__CURRENT_SKILLS_END__"
+                except (TypeError, ValueError) as e:
+                    logger.warning(f"Failed to serialize current_skills: {e}")
+
             # Create roadmap
             roadmap = Roadmap(
                 topic_field_id=topic_field.id,
                 name=roadmap_data["name"],
-                description=roadmap_data.get("description"),
+                description=roadmap_description,
             )
             db.add(roadmap)
             db.flush()  # Get roadmap.id
@@ -600,13 +697,27 @@ class RoadmapService:
                                 f"Failed to serialize top_skills for item {item_data.get('title')}: {e}"
                             )
 
+                # Process skill_impact for all items
+                skill_impact = item_data.get("skill_impact")
+                item_description = item_data.get("description") or ""
+                
+                # Store skill_impact in description with placeholder
+                if skill_impact:
+                    try:
+                        skill_impact_json = json.dumps({"skill_impact": skill_impact}, ensure_ascii=False)
+                        item_description += f"\n\n__SKILL_DATA_START__\n{skill_impact_json}\n__SKILL_DATA_END__"
+                    except (TypeError, ValueError) as e:
+                        logger.warning(
+                            f"Failed to serialize skill_impact for item {item_data.get('title')}: {e}"
+                        )
+
                 # Create roadmap item
                 roadmap_item = RoadmapItem(
                     roadmap_id=roadmap.id,
                     parent_id=parent_id,
                     item_type=RoadmapItemType(item_type_str),
                     title=item_data["title"],
-                    description=item_data.get("description"),
+                    description=item_description,
                     semester=semester,
                     is_semester_break=item_data.get("is_semester_break", False),
                     order=item_data.get("order", 0),
