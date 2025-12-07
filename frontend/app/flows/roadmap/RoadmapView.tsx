@@ -9,8 +9,7 @@ import { Layout } from '~/components/layout';
 import { Card, CardHeader, CardTitle, CardDescription, Button, RadarChart, Accordion } from '~/components/ui';
 import { useApp } from '~/contexts';
 import type { Skill, SkillImpact } from '~/types';
-import { SemesterAccordion } from './components/SemesterAccordion';
-import { SkillGapCard } from './components/SkillGapCard';
+import { SemesterAccordion, SkillGapCard, PDFDownloadButton } from './components';
 
 export const RoadmapView: React.FC = () => {
   const navigate = useNavigate();
@@ -364,12 +363,10 @@ export const RoadmapView: React.FC = () => {
                 </svg>
                 Teilen
               </Button>
-              <Button disabled>
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                PDF Export
-              </Button>
+              <PDFDownloadButton
+                careerPath={currentCareerPath}
+                userSkills={currentSkills}
+              />
             </div>
           </div>
         </div>
