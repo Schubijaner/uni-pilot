@@ -1,2 +1,2 @@
-const baseUrl = 'http://192.168.137.75:8000/api/v1'; 
+const baseUrl = 'https://8kmhgeybea.us-east-1.awsapprunner.com/api/v1'; 
 export default baseUrl;
