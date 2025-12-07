@@ -358,8 +358,8 @@ export const SelectionView: React.FC = () => {
 
   // Check if roadmap can be created
   const canCreateRoadmap = useMemo(() => {
-    return visibleLeafCount === 1;
-  }, [visibleLeafCount]);
+    return visibleLeafCount === 1 || popupContent?.topicFieldId !== undefined;
+  }, [visibleLeafCount, popupContent]);
 
   // Handlers
   const handleOptionSelect = useCallback((questionId: string, optionId: "true" | "false") => {
@@ -392,19 +392,33 @@ export const SelectionView: React.FC = () => {
   }, [visibleQuestions.length, currentQuestionIndex]);
 
   const handleCreateRoadmap = useCallback(async () => {
-    if (filteredTreeData === null) return;
+    if (filteredTreeData === null || popupContent?.topicFieldId === undefined) return;
 
-    const targetJobs = collectLeafNodes(filteredTreeData.nodes)[0];
-    if (targetJobs && token) {
+    if (popupContent?.topicFieldId !== undefined && token) {
       setIsCreatingRoadmap(true);
       try {
-        await generateRoadmap(targetJobs.topic_field_id!, token);
+        await generateRoadmap(popupContent.topicFieldId, token);
         navigate('/roadmap');
       } catch (error) {
         console.error('Failed to generate roadmap:', error);
         // Show error to user
       } finally {
         setIsCreatingRoadmap(false);
+      }
+      return;
+    } else if (filteredTreeData) {
+      const targetJobs = collectLeafNodes(filteredTreeData.nodes)[0];
+      if (targetJobs && token) {
+        setIsCreatingRoadmap(true);
+        try {
+          await generateRoadmap(targetJobs.topic_field_id!, token);
+          navigate('/roadmap');
+        } catch (error) {
+          console.error('Failed to generate roadmap:', error);
+          // Show error to user
+        } finally {
+          setIsCreatingRoadmap(false);
+        }
       }
     }
   }, [filteredTreeData, canCreateRoadmap, generateRoadmap, navigate]);
@@ -414,39 +428,102 @@ export const SelectionView: React.FC = () => {
       <LoadingModal isOpen={isCreatingRoadmap} />
       {/* Mobile Layout - Tree as background, Questions as overlay */}
       <div className="lg:hidden fixed inset-0 flex flex-col">
-        {/* Tree - Full background */}
-        <div className="flex-1 relative">
+        {/* Tree - Full background (absolute so it doesn't affect flex layout) */}
+        <div className="absolute inset-0">
           <CareerTree nodes={nodes} edges={edges} />
         </div>
 
-        <div className="absolute top-0 right-0 m-4 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-800">
-          <Button
-              size="lg"
-              disabled={!canCreateRoadmap}
-              onClick={handleCreateRoadmap}
-              rightIcon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              }
-            >
-              Roadmap erstellen
-            </Button>
-        </div>
+        {/* Content overlay - flex column to distribute space */}
+        <div className="relative z-20 flex flex-col h-full pointer-events-none">
+          {/* Top bar with button */}
+          <div className="flex justify-end p-4 pointer-events-auto">
+            <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-800">
+              <Button
+                size="lg"
+                disabled={!canCreateRoadmap}
+                onClick={handleCreateRoadmap}
+                rightIcon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                }
+              >
+                Roadmap erstellen
+              </Button>
+            </div>
+          </div>
 
-        {/* Filter Questions - Overlay at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
-          <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700">
-            <FilterQuestions
-              questions={visibleQuestions}
-              currentQuestionIndex={currentQuestionIndex}
-              selectedOptions={selectedOptions}
-              onOptionSelect={handleOptionSelect}
-              onPrev={handlePrevQuestion}
-              onNext={handleNextQuestion}
-              canGoPrev={currentQuestionIndex > 0}
-              canGoNext={currentQuestionIndex < visibleQuestions.length - 1}
-            />
+          {/* Chat Card - Takes remaining space between top bar and questions */}
+          {popupContent && (
+            <div className="flex-1 min-h-0 px-4 pb-2 pointer-events-auto">
+              <Card variant="glass" className="h-full flex flex-col p-4 overflow-hidden">
+                {popupContent.topicFieldId && token ? (
+                  <ChatContainer
+                    topicFieldId={popupContent.topicFieldId}
+                    topicFieldName={popupContent.title}
+                    topicFieldDescription={popupContent.description}
+                    token={token}
+                    onClose={() => setPopupContent(null)}
+                  />
+                ) : (
+                  <>
+                    <div className="flex justify-between items-start gap-4 mb-4">
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                        {popupContent.title}
+                      </h2>
+                      <button
+                        onClick={() => setPopupContent(null)}
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 flex-shrink-0 p-1"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm overflow-y-auto flex-1">
+                      {popupContent.description}
+                    </p>
+                    {!popupContent.topicFieldId && (
+                      <p className="mt-4 text-xs text-amber-600 dark:text-amber-400">
+                        Chat ist nur für Leaf-Nodes mit Topic Fields verfügbar.
+                      </p>
+                    )}
+                    {!token && (
+                      <p className="mt-4 text-xs text-amber-600 dark:text-amber-400">
+                        Bitte melde dich an, um den Chat zu nutzen.
+                      </p>
+                    )}
+                  </>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {/* Filter Questions - At bottom, natural height */}
+          <div className="flex-shrink-0 p-4 pointer-events-auto mt-auto">
+            <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700">
+              <FilterQuestions
+                questions={visibleQuestions}
+                currentQuestionIndex={currentQuestionIndex}
+                selectedOptions={selectedOptions}
+                onOptionSelect={handleOptionSelect}
+                onPrev={handlePrevQuestion}
+                onNext={handleNextQuestion}
+                canGoPrev={currentQuestionIndex > 0}
+                canGoNext={currentQuestionIndex < visibleQuestions.length - 1}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -460,7 +537,7 @@ export const SelectionView: React.FC = () => {
 
         {/* Content Overlay */}
         <div className="relative z-10 h-full pointer-events-none">
-          <div className="container mx-auto max-w-7xl px-6 py-8 h-full flex flex-col">
+          <div className="container mx-auto max-w-8xl px-6 py-8 h-full flex flex-col">
             {/* Header - Top left */}
             <div className="pointer-events-auto mb-6 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 px-6 py-4 max-w-2xl">
                 <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
@@ -563,7 +640,7 @@ export const SelectionView: React.FC = () => {
                   <span className="font-medium text-amber-600 dark:text-amber-400">
                     Hinweis:
                   </span>{' '}
-                  Wähle mindestens einen Job aus oder filtere auf max. 3 Jobs.
+                  Wähle mindestens einen Job aus oder filtere auf einen Job.
                 </p>
               ) : (
                 <p className="text-sm text-green-600 dark:text-green-400">

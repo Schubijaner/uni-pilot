@@ -54,18 +54,22 @@ export const ModulesStep: React.FC = () => {
 
   // Group modules by semester
   const modulesBySemester = filteredModules.reduce((acc, module) => {
-    const semester = module.semester;
+    const semester = module.semester ?? 'elective'; // Use 'elective' for null semesters
     if (!acc[semester]) {
       acc[semester] = [];
     }
     acc[semester].push(module);
     return acc;
-  }, {} as Record<number, Module[]>);
+  }, {} as Record<number | 'elective', Module[]>);
 
-  // Sort semesters
+  // Sort semesters (numbers first, then 'elective' at the end)
   const sortedSemesters = Object.keys(modulesBySemester || {})
-    .map(Number)
-    .sort((a, b) => a - b);
+    .sort((a, b) => {
+      if (a === 'elective') return 1;
+      if (b === 'elective') return -1;
+      return Number(a) - Number(b);
+    });
+
 
   const selectedCount = state.userData.selectedModules.length;
 
@@ -125,13 +129,26 @@ export const ModulesStep: React.FC = () => {
               {sortedSemesters.map((semester) => (
                 <div key={semester}>
                   <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
-                      {semester}
-                    </span>
-                    Semester {semester}
+                    {semester === 'elective' ? (
+                      <>
+                        <span className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xs">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                          </svg>
+                        </span>
+                        Wahlmodule (flexibel)
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs">
+                          {semester}
+                        </span>
+                        Semester {semester}
+                      </>
+                    )}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {(modulesBySemester[semester] || []).map((module) => (
+                    {(modulesBySemester[semester as keyof typeof modulesBySemester] || []).map((module) => (
                       <Checkbox
                         key={module.id}
                         label={module.name}
