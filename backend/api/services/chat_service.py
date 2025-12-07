@@ -398,13 +398,48 @@ Worüber möchtest du mehr erfahren?"""
         recent_messages = ChatService.get_messages(session_id, db=db, limit=settings.MAX_CHAT_HISTORY_MESSAGES)
 
         # Build message history for LLM (format: [{"role": "user", "content": "..."}, ...])
+        # AWS Bedrock requires the first message to have role "user"
         llm_messages = []
+        
+        # Track if we've seen the first user message (to handle greeting at start)
+        found_first_user = False
+        
         for msg in recent_messages:
-            llm_messages.append({"role": msg.role, "content": msg.content})
+            # Skip the current user message if it's already in history (shouldn't happen, but be safe)
+            if msg.id == user_message.id:
+                continue
+            
+            # If this is the first user message, mark it and always include it
+            if msg.role == "user" and not found_first_user:
+                found_first_user = True
+                llm_messages.append({"role": msg.role, "content": msg.content})
+            # After finding the first user message, include all subsequent messages
+            elif found_first_user:
+                llm_messages.append({"role": msg.role, "content": msg.content})
+            # Before the first user message, skip assistant messages (like greeting)
+            # This ensures we comply with Bedrock's requirement while keeping greeting in DB for display
+            elif msg.role == "assistant":
+                logger.debug(
+                    f"Skipping assistant message before first user message "
+                    f"(message ID: {msg.id}) to comply with Bedrock requirement. "
+                    f"The greeting remains in the database for display."
+                )
 
-        # Add current user message if not already in history
-        if not recent_messages or recent_messages[-1].id != user_message.id:
-            llm_messages.append({"role": "user", "content": user_message_content})
+        # Always add current user message at the end (it's the message we're responding to)
+        llm_messages.append({"role": "user", "content": user_message_content})
+        
+        # Final safety check: ensure first message is always "user" (required by AWS Bedrock)
+        if not llm_messages or llm_messages[0].get("role") != "user":
+            logger.warning(
+                "Message history validation failed. Ensuring first message is 'user'. "
+                "This should not happen in normal operation."
+            )
+            # Remove all non-user messages from the start
+            while llm_messages and llm_messages[0].get("role") != "user":
+                llm_messages.pop(0)
+            # If still empty or first is not user, use only the current user message
+            if not llm_messages or llm_messages[0].get("role") != "user":
+                llm_messages = [{"role": "user", "content": user_message_content}]
 
         # Get system prompt (prefer job-based prompt)
         if job:
