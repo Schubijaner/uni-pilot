@@ -44,7 +44,9 @@ async def create_or_get_chat_session(
             detail=f"Topic field with id {topic_field_id} not found",
         )
 
-    session = ChatService.get_or_create_session(
+    # Create ChatService instance to use instance method
+    chat_service = ChatService()
+    session = chat_service.get_or_create_topic_field_session(
         user_id=current_user.id,
         topic_field_id=topic_field_id,
         db=db,
@@ -96,7 +98,9 @@ async def create_or_get_job_chat_session(
         # Verify job exists and is a leaf node
         job = CareerService.get_job(job_id, db)
 
-        session = ChatService.get_or_create_job_session(
+        # Create ChatService instance to use instance method
+        chat_service = ChatService()
+        session = chat_service.get_or_create_job_session(
             user_id=current_user.id,
             job_id=job_id,
             db=db,

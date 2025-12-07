@@ -212,6 +212,7 @@ class LLMService:
         system_prompt: str,
         messages: List[Dict[str, str]],
         temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
     ) -> str:
         """
         Generate chat response using Claude Haiku.
@@ -220,18 +221,20 @@ class LLMService:
             system_prompt: System prompt for the conversation
             messages: List of message dicts with 'role' and 'content' keys
             temperature: Sampling temperature (defaults to config)
+            max_tokens: Maximum tokens in response (defaults to 2048)
 
         Returns:
             Assistant response text
         """
         temp = temperature if temperature is not None else settings.CHAT_TEMPERATURE
+        max_tok = max_tokens if max_tokens is not None else 2048
 
         return self._invoke_model(
             model_id=self.model_id_chat,
             messages=messages,
             system_prompt=system_prompt,
             temperature=temp,
-            max_tokens=2048,
+            max_tokens=max_tok,
         )
 
     def generate_roadmap(

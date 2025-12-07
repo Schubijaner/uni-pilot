@@ -1,0 +1,43 @@
+### Test Job Chat Greeting
+### This file tests the automatic greeting generation for job-based chats
+
+@baseUrl = http://localhost:8000
+@token = YOUR_AUTH_TOKEN_HERE
+
+### Step 1: Login to get token
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "timothy.lju@gmail.com",
+  "password": "password123"
+}
+
+### Step 2: Get a job ID (use any leaf node from career tree)
+GET {{baseUrl}}/api/v1/study-programs/1/career-tree
+Authorization: Bearer {{token}}
+
+### Step 3: Create or get chat session for a job (this should generate greeting automatically)
+# Replace {job_id} with an actual job ID (leaf node) from step 2
+POST {{baseUrl}}/api/v1/jobs/11/chat/sessions
+Authorization: Bearer {{token}}
+
+### Step 4: Get messages from the session (should include greeting)
+# Replace {session_id} with the session ID from step 3
+GET {{baseUrl}}/api/v1/chat/sessions/4/messages
+Authorization: Bearer {{token}}
+
+### Step 5: Send a message to test the chat
+# Replace {session_id} with the session ID from step 3
+POST {{baseUrl}}/api/v1/chat/sessions/4/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "content": "Was sind die wichtigsten Skills für diesen Job?"
+}
+
+### Step 6: Get all messages again (should show greeting + user message + assistant response)
+GET {{baseUrl}}/api/v1/chat/sessions/4/messages
+Authorization: Bearer {{token}}
+

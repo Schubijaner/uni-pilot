@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 
 from api.core.config import get_settings
 from api.core.exceptions import NotFoundError
-from api.prompts.chat_prompts import get_chat_system_prompt, get_chat_system_prompt_for_job
+from api.prompts.chat_prompts import (
+    generate_job_greeting_prompt,
+    generate_topic_field_greeting_prompt,
+    get_chat_system_prompt,
+    get_chat_system_prompt_for_job,
+)
 from api.services.llm_service import LLMService
 from database.models import ChatMessage, ChatSession, TopicField, CareerTreeNode
 
@@ -78,12 +83,12 @@ class ChatService:
 
         return session
 
-    @staticmethod
-    def get_or_create_job_session(user_id: int, job_id: int, db: Session) -> ChatSession:
+    def get_or_create_job_session(self, user_id: int, job_id: int, db: Session) -> ChatSession:
         """
         Get existing chat session for a job or create a new one.
         
         Also sets the job's topic_field_id to connect the chat session with the roadmap.
+        If a new session is created, generates and stores a job-specific greeting.
 
         Args:
             user_id: User ID
@@ -107,12 +112,69 @@ class ChatService:
         # Use topic_field_id from job to connect chat session with roadmap
         topic_field_id = job.topic_field_id
         
-        return ChatService.get_or_create_session(
+        # Create or get session
+        session = ChatService.get_or_create_session(
             user_id=user_id,
             topic_field_id=topic_field_id,  # Connect to roadmap via topic_field_id
             career_tree_node_id=job_id,  # Keep job reference
             db=db,
         )
+        
+        # Check if there are any messages - if not, generate greeting
+        existing_messages = ChatService.get_messages(session.id, db=db, limit=1)
+        if not existing_messages:
+            try:
+                self._generate_and_store_greeting(session.id, job, db)
+            except Exception as e:
+                # Log error but don't fail session creation
+                logger.error(
+                    f"Failed to generate greeting for job session {session.id}: {e}. "
+                    f"Session created without greeting."
+                )
+        
+        return session
+
+    def get_or_create_topic_field_session(
+        self, user_id: int, topic_field_id: int, db: Session
+    ) -> ChatSession:
+        """
+        Get existing chat session for a topic field or create a new one.
+        
+        If a new session is created or existing session has no messages, generates and stores a topic-field-specific greeting.
+
+        Args:
+            user_id: User ID
+            topic_field_id: Topic field ID
+            db: Database session
+
+        Returns:
+            ChatSession object
+        """
+        # Get topic field
+        topic_field = db.query(TopicField).filter(TopicField.id == topic_field_id).first()
+        if not topic_field:
+            raise NotFoundError(f"Topic field with id {topic_field_id} not found", "TOPIC_FIELD_NOT_FOUND")
+
+        # Create or get session
+        session = ChatService.get_or_create_session(
+            user_id=user_id,
+            topic_field_id=topic_field_id,
+            db=db,
+        )
+
+        # Check if there are any messages - if not, generate greeting
+        existing_messages = ChatService.get_messages(session.id, db=db, limit=1)
+        if not existing_messages:
+            try:
+                self._generate_and_store_topic_field_greeting(session.id, topic_field, db)
+            except Exception as e:
+                # Log error but don't fail session creation
+                logger.error(
+                    f"Failed to generate greeting for topic field session {session.id}: {e}. "
+                    f"Session created without greeting."
+                )
+
+        return session
 
     @staticmethod
     def get_session(session_id: int, user_id: Optional[int], db: Session) -> ChatSession:
@@ -163,6 +225,128 @@ class ChatService:
             .all()
         )
         return messages
+
+    def _generate_and_store_greeting(
+        self,
+        session_id: int,
+        job: CareerTreeNode,
+        db: Session,
+    ) -> ChatMessage:
+        """
+        Generate and store a greeting message for a new job chat session.
+
+        Args:
+            session_id: Chat session ID
+            job: Career tree node (job)
+            db: Database session
+
+        Returns:
+            ChatMessage object with the greeting
+
+        Note:
+            If LLM generation fails, a fallback greeting is used.
+        """
+        try:
+            # Generate greeting prompt
+            greeting_prompt = generate_job_greeting_prompt(job)
+
+            # Call LLM with higher temperature for creativity
+            logger.info(f"Generating greeting for job chat session {session_id} (job: {job.name})")
+            greeting_content = self.llm_service.chat(
+                system_prompt="Du bist ein kreativer Texter, der witzige und einladende Begrüßungen für Chat-Assistenten schreibt.",
+                messages=[{"role": "user", "content": greeting_prompt}],
+                temperature=0.9,  # Higher temperature for more creativity
+                max_tokens=200,  # Short greeting
+            )
+
+            # Clean up the greeting (remove any extra formatting)
+            greeting_content = greeting_content.strip()
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to generate LLM greeting for session {session_id}: {e}. Using fallback greeting."
+            )
+            # Fallback greeting
+            job_name = job.name
+            greeting_content = f"""Hallo! 👋 Ich bin dein persönlicher Assistent für den Beruf "{job_name}".
+
+Ich helfe dir dabei, alles über diesen spannenden Karriereweg zu erfahren - von den benötigten Skills über Tools und Technologien bis hin zu Einstiegsmöglichkeiten.
+
+Worüber möchtest du mehr erfahren?"""
+
+        # Save greeting as assistant message
+        greeting_message = ChatMessage(
+            session_id=session_id,
+            role="assistant",
+            content=greeting_content,
+        )
+        db.add(greeting_message)
+        db.commit()
+        db.refresh(greeting_message)
+
+        logger.info(f"Successfully stored greeting for session {session_id}")
+        return greeting_message
+
+    def _generate_and_store_topic_field_greeting(
+        self,
+        session_id: int,
+        topic_field: TopicField,
+        db: Session,
+    ) -> ChatMessage:
+        """
+        Generate and store a greeting message for a new topic field chat session.
+
+        Args:
+            session_id: Chat session ID
+            topic_field: Topic field
+            db: Database session
+
+        Returns:
+            ChatMessage object with the greeting
+
+        Note:
+            If LLM generation fails, a fallback greeting is used.
+        """
+        try:
+            # Generate greeting prompt
+            greeting_prompt = generate_topic_field_greeting_prompt(topic_field)
+
+            # Call LLM with higher temperature for creativity
+            logger.info(f"Generating greeting for topic field chat session {session_id} (topic: {topic_field.name})")
+            greeting_content = self.llm_service.chat(
+                system_prompt="Du bist ein kreativer Texter, der witzige und einladende Begrüßungen für Chat-Assistenten schreibt.",
+                messages=[{"role": "user", "content": greeting_prompt}],
+                temperature=0.9,  # Higher temperature for more creativity
+                max_tokens=200,  # Short greeting
+            )
+
+            # Clean up the greeting (remove any extra formatting)
+            greeting_content = greeting_content.strip()
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to generate LLM greeting for session {session_id}: {e}. Using fallback greeting."
+            )
+            # Fallback greeting
+            topic_name = topic_field.name
+            greeting_content = f"""Hallo! 👋 Ich bin dein persönlicher Assistent für das Themenfeld "{topic_name}".
+
+Ich helfe dir dabei, alles über dieses spannende Themenfeld zu erfahren - von den benötigten Skills über Tools und Technologien bis hin zu Einstiegsmöglichkeiten.
+
+Worüber möchtest du mehr erfahren?"""
+
+        # Save greeting as assistant message
+        greeting_message = ChatMessage(
+            session_id=session_id,
+            role="assistant",
+            content=greeting_content,
+        )
+        db.add(greeting_message)
+        db.commit()
+        db.refresh(greeting_message)
+
+        logger.info(f"Successfully stored greeting for session {session_id}")
+        return greeting_message
 
     def send_message(
         self,
